@@ -1,7 +1,12 @@
 # pwpoly.py
 # piecewise polynomial class PwPoly
 
-import numpy as np
+from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
+from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
+from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
+from numpy import prod, isclose, allclose, transpose
+from numpy.linalg import inv
+from scipy.linalg import solve_banded, solve
 
 class PwPoly(object):
     """Piecewise polynomial function.
@@ -108,27 +113,27 @@ class PwPoly(object):
     def __init__(self, xk=None, *args):
         if xk is None:
             return
-        xk = np.asfarray(xk)
+        xk = asfarray(xk)
         if xk.ndim != 1:
             raise ValueError("xk must be 1D array_like")
         nk = xk.size
         if nk>1 and xk[-1]<xk[0]:
             # as a convenience, reverse xk and args so xk increasing
             xk = xk[::-1]
-            args = np.asarray(args)[..., ::-1]
-        argz = np.asfarray(args[-1])
+            args = asarray(args)[..., ::-1]
+        argz = asfarray(args[-1])
         even = (argz.shape[-1] == nk-1)
         if even:
             args = args[0:-1]
             if not args:
-                zero = np.zeros_like(argz[...,0:1])
-                args = (np.concatenate((zero, argz, zero), axis=-1), )
+                zero = zeros_like(argz[...,0:1])
+                args = (concatenate((zero, argz, zero), axis=-1), )
                 even = False
-        args = np.asfarray(np.array(args))  # copy of some float type
+        args = asfarray(array(args))  # copy of some float type
         nda = args.ndim - 2  # additional dimensions of args
         if nda < 0:
             raise ValueError("yk and derivatives must be at least 1D")
-        dtype = np.promote_types(xk.dtype, args.dtype)
+        dtype = promote_types(xk.dtype, args.dtype)
         if args.shape[-1] != nk+1:
             if args.shape[-1] != nk:
                 raise ValueError("yk trailing axis inconsistent with xk size")
@@ -136,28 +141,28 @@ class PwPoly(object):
                 raise ValueError("xk needs at least 2 points when yk same size")
             # convert args from derivatives to polynomial coefficients
             h = args.shape[0] - 1
-            fact = np.maximum(np.arange(h+1, dtype=dtype), 1).cumprod()
+            fact = maximum(arange(h+1, dtype=dtype), 1).cumprod()
             args *= 1./fact.reshape((h+1,)+(1,)*(nda+1))
             if even:
-                argz *= 1./(fact[0] * np.arange(h+1, 2*h+1, dtype=dtype).prod())
+                argz *= 1./(fact[0] * arange(h+1, 2*h+1, dtype=dtype).prod())
             # compute coefficients
             dx = (xk[1:] - xk[:-1]).reshape((1,)*nda + (nk-1,))
             left, rght = args[..., :-1], args[..., 1:]
-            argz = argz[np.newaxis] if even else left[0:0, ...]
-            c = np.concatenate((left, np.zeros_like(left), argz))
+            argz = argz[newaxis] if even else left[0:0, ...]
+            c = concatenate((left, zeros_like(left), argz))
             rght = rght - polyddx(c, dx, h)
-            dxn = dx + np.zeros((h+1,)+dx.shape)
+            dxn = dx + zeros((h+1,)+dx.shape)
             dxn[0] = 1
             dxn = dxn.cumprod(axis=0)  # [1, dx, dx**2, ..., dx**h]
             rght *= dxn  # normalize to 0<dx'<1
             m = self._two_sided_inverse(h)
-            rght = np.einsum('ij,j...->i...', m, rght) # now h+1...2*h+1 coeffs
+            rght = einsum('ij,j...->i...', m, rght) # now h+1...2*h+1 coeffs
             dxn *= dx*dxn[-1]  # [dx**(h+1), ..., dx**(2*h+1)]
             rght *= 1./dxn
-            c = np.concatenate((left, rght, argz))
+            c = concatenate((left, rght, argz))
             # add extrapolation coefficients - just the final given ones
-            left = np.zeros_like(c[..., 0:1])
-            c = np.concatenate((left, c, left), axis=-1)
+            left = zeros_like(c[..., 0:1])
+            c = concatenate((left, c, left), axis=-1)
             c[0:h+1, ..., 0:nk+1:nk] = args[..., 0:nk:nk-1]
             args = c
         # set up for __call__
@@ -168,7 +173,7 @@ class PwPoly(object):
         if xk.size == c.shape[-1]:
             self.xk0 = xk
         else:
-            self.xk0 = np.concatenate((xk[0:1], xk))
+            self.xk0 = concatenate((xk[0:1], xk))
         self.xk = self.xk0[1:]
         self.c = c
         # treat xk0, c as if immutable
@@ -205,8 +210,8 @@ class PwPoly(object):
         m = cls._two_sided_cache.get(h)
         if m is None:
             # not particularly efficient, but terse
-            m = polyddx(np.eye(2*h+2, h+1, -h-1), 1., h)
-            cls._two_sided_cache[h] = m = np.linalg.inv(m)
+            m = polyddx(eye(2*h+2, h+1, -h-1), 1., h)
+            cls._two_sided_cache[h] = m = linalg.inv(m)
         # Note that the matrix becomes ill-conditioned quickly as h increases
         # should be fine for polynomials up to degree 10 or so (h~5).  The
         # whole strategy of the PwPoly algorithm for computing the polynomials
@@ -234,8 +239,8 @@ class PwPoly(object):
             defined with additional dimensions, in which case those become
             the leading dimensions of the result arrays.
         """
-        x = np.array(x)    # make copy here for -= below
-        ix = np.searchsorted(self.xk, x)
+        x = array(x)    # make copy here for -= below
+        ix = searchsorted(self.xk, x)
         x -= self.xk0[ix]
         c = self.c[..., ix]
         return polyddx(c, x, nd, True) if nd else polyfun(c, x)
@@ -266,33 +271,33 @@ class PwPoly(object):
         for _ in range(m):
             n = c.shape[0]
             if n < 2:
-                c = np.zeros_like(c)
+                c = zeros_like(c)
                 break
-            c = c[1:] * np.arange(1, n).reshape((n-1,) + s)
+            c = c[1:] * arange(1, n).reshape((n-1,) + s)
         return self.new(self.xk0, c)
 
     def integ(self, m=1, k=None, lbnd=0):
         """Integral as a new piecewise polynomial.
         """
         c = self.c
-        consts = np.zeros((m,) + c.shape[1:-1])
-        lbnd = np.asfarray(lbnd)
+        consts = zeros((m,) + c.shape[1:-1])
+        lbnd = asfarray(lbnd)
         if lbnd.ndim:
             raise ValueError("lower bound must be scalar")
         dxlb = self.xk0 - lbnd
         if k is not None:
-            k = np.asfarray(k)
+            k = asfarray(k)
             if k.ndim == c.ndim-2:
-                k = k[np.newaxis]
+                k = k[newaxis]
             if k.shape[0] < m:
-                k = np.concatenate((k, np.zeros((m-k.shape[0],)+k.shape[1:])))
+                k = concatenate((k, zeros((m-k.shape[0],)+k.shape[1:])))
             consts += k
         # integration constants same for every interval xk
-        consts = consts[...,np.newaxis] + np.zeros(c.shape[-1])
-        for k in consts[:,np.newaxis]: # add leading (1,) axis for concatenate
+        consts = consts[...,newaxis] + zeros(c.shape[-1])
+        for k in consts[:,newaxis]: # add leading (1,) axis for concatenate
             n = c.shape[0]
-            n = 1. / np.arange(1, n+1).reshape((n,) + (1,)*(c.ndim-1))
-            c = np.concatenate((k, c*n))
+            n = 1. / arange(1, n+1).reshape((n,) + (1,)*(c.ndim-1))
+            c = concatenate((k, c*n))
             # c[0] each have lower bound at xk, adjust to common lbnd
             c[0] -= polyfun(c, dxlb)
         return self.new(self.xk0, c)
@@ -320,15 +325,15 @@ class PwPoly(object):
             return x
         if len(dx) > 1:
             dx[0] = dx[1]
-            dx = np.concatenate((dx, dx[-1:]))
+            dx = concatenate((dx, dx[-1:]))
         else:
-            dx = np.array([1., 1.])
-        dxn = dx + np.zeros((n+1,)+dx.shape)
+            dx = array([1., 1.])
+        dxn = dx + zeros((n+1,)+dx.shape)
         dxn[0] = 1
         dxn = dxn.cumprod(axis=0)  # [1, dx, dx**2, ..., dx**n]
         c *= dxn  # scale each interval to (0,1)
-        deg = np.absolute(c)
-        deg = (deg > tol*deg.max(axis=0)) * np.arange(n+1)[:,np.newaxis]
+        deg = absolute(c)
+        deg = (deg > tol*deg.max(axis=0)) * arange(n+1)[:,newaxis]
         deg = deg.max(axis=0)  # effective degree in each interval
         x = [x]
         nold, imax = -1, len(xk)
@@ -336,24 +341,24 @@ class PwPoly(object):
             n = deg[i]
             if n < 1: continue
             if n != nold:
-                m = np.zeros((n, n), dtype=c.dtype)
+                m = zeros((n, n), dtype=c.dtype)
                 m.reshape(n*n)[n::n+1] = 1
             m[:, -1] = -ci[:-1] / ci[-1]
-            xi = np.linalg.eigvals(m)
-            xok, xi = np.isreal(xi), np.real(xi)
+            xi = linalg.eigvals(m)
+            xok, xi = isreal(xi), real(xi)
             if i == 0:
                 xok &= (xi <= 0.)
             elif i < imax:
                 xok &= (xi >= 0.) & (xi <= 1.)
             else:
                 xok &= (xi >= 0.)
-            if not np.any(xok): continue
+            if not any(xok): continue
             x.append(xi[xok]*dx[i] + xk0[i])  # undo (0,1) dx c scaling
-        x = np.concatenate(x)
+        x = concatenate(x)
         x.sort()
         # remove duplicates or near duplicates
         if len(x) > 1:
-            mask = np.ones(x.shape, dtype=bool)
+            mask = ones(x.shape, dtype=bool)
             i = xk.searchsorted(x)
             dx = dx[i]
             d = x[1:] - x[:-1]
@@ -405,7 +410,7 @@ class PwPoly(object):
         """
         if n is None:
             n = self.c.shape[0] - 1
-        xk = np.asarray(xk)
+        xk = asarray(xk)
         if xk.ndim != 1:
             raise ValueError("new knot points must be 1D array_like")
         if xk[0] > xk[-1]:
@@ -414,17 +419,17 @@ class PwPoly(object):
         if h >= 0:
             c = self(xk, h)
             if h == 0:
-                c = c[np.newaxis]
+                c = c[newaxis]
         else:
             c = (self.c[...,0:1]+xk)[0:0,...]
         if not (n & 1):
             # breaks if only one knot point...
             dx = 0.5*(xk[1:] - xk[:-1])
-            x = xk + np.concatenate(dx, dx[-1:])
-            x = np.concatenate((xk[0]-dx[0:1], x))
-            ix = np.searchsorted(self.xk, x)
-            c = np.concatenate((c, self.c[...,ix][-1:,...]))
-        return PwPoly(xk, *c)
+            x = xk + concatenate(dx, dx[-1:])
+            x = concatenate((xk[0]-dx[0:1], x))
+            ix = searchsorted(self.xk, x)
+            c = concatenate((c, self.c[...,ix][-1:,...]))
+        return self.new(xk, c)
 
     def addknots(self, xk, _nocheck=False):
         """Return a new PwPoly with knot points xk that matches this one.
@@ -452,11 +457,11 @@ class PwPoly(object):
             elif len(xk) == len(self.xk):
                 return self
         ic = self.xk.searchsorted(0.5 * (xk[1:] + xk[:-1]))
-        ic = np.concatenate(([0], ic, [len(self.xk)]))
-        xk0 = np.concatenate((xk[0:1], xk))
+        ic = concatenate(([0], ic, [len(self.xk)]))
+        xk0 = concatenate((xk[0:1], xk))
         # ic is index of interval in self.xk for each interval bounded by xk
         c = polyddx(self.c[...,ic], xk0-self.xk0[ic])
-        return PwPoly(xk, *c)
+        return self.new(xk, c)
 
     def allknots(self, *args, **kwargs):
         """Return union of knot points among piecewise polynomials.
@@ -484,21 +489,21 @@ class PwPoly(object):
                 yk = a.xk
             except AttributeError:
                 yk = a
-            if np.array_equal(xk, yk):
+            if array_equal(xk, yk):
                 continue
             if len(yk) > len(xk):
                 xk, yk = yk, xk
-            iy = np.searchsorted(xk, yk)
+            iy = searchsorted(xk, yk)
             dx = xk[1:] - xk[:-1]
             if len(dx):
-                dx = np.concatenate((dx[0:1], dx, dx[-1:]))[iy] * tol
-                i, j = np.maximum(iy-1, 0), np.minimum(iy, len(xk)-1)
-                mask = np.absolute(yk - xk[i]) > dx
-                mask &= np.absolute(yk - xk[j]) > dx
+                dx = concatenate((dx[0:1], dx, dx[-1:]))[iy] * tol
+                i, j = maximum(iy-1, 0), minimum(iy, len(xk)-1)
+                mask = absolute(yk - xk[i]) > dx
+                mask &= absolute(yk - xk[j]) > dx
                 yk = yk[mask]
-            elif np.isclose(xk[0], yk[0], rtol=tol, atol=tol):
+            elif isclose(xk[0], yk[0], rtol=tol, atol=tol):
                 continue
-            xk = np.sort(np.concatenate((xk, yk)))
+            xk = sort(concatenate((xk, yk)))
         return xk
 
     # pickle and copy
@@ -545,17 +550,17 @@ class PwPoly(object):
         this = self
         if isinstance(other, PwPoly):
             if not skip:
-                nd = np.maximum(this.deg, other.deg)
+                nd = maximum(this.deg, other.deg)
                 if this.deg != nd:
                     z = list(this.c.shape)
                     z[0] = nd - this.deg
-                    z = np.zeros(z, dtype=this.c.dtype)
-                    this = self.new(this.xk0, np.concatenate((this.c, z)))
+                    z = zeros(z, dtype=this.c.dtype)
+                    this = self.new(this.xk0, concatenate((this.c, z)))
                 if other.deg != nd:
                     z = list(other.c.shape)
                     z[0] = nd - other.deg
-                    z = np.zeros(z, dtype=other.c.dtype)
-                    other = self.new(other.xk0, np.concatenate((other.c, z)))
+                    z = zeros(z, dtype=other.c.dtype)
+                    other = self.new(other.xk0, concatenate((other.c, z)))
             sa, sb = this.c.shape, other.c.shape
             la, lb = len(sa), len(sb)
             if la < lb:
@@ -571,7 +576,7 @@ class PwPoly(object):
             other = other.c
             numb = False
         else:
-            other = np.asarray(other, dtype=self.c.dtype)[...,np.newaxis]
+            other = asarray(other, dtype=self.c.dtype)[...,newaxis]
             numb = True
         return this, other, numb
 
@@ -601,7 +606,7 @@ class PwPoly(object):
         for i, d in enumerate(other):
             cd = c * d
             if product is None:
-                product = np.zeros((n+m-1,)+cd.shape[1:])
+                product = zeros((n+m-1,)+cd.shape[1:])
             product[i:i+n] += cd
         return self.new(this.xk0, product)
     def __rmul__(self, other):
@@ -614,6 +619,29 @@ class PwPoly(object):
         if not numb:
             raise ValueError("cannot divide by a PwPoly")
         return self.new(this.xk0, this.c / other)
+
+class PeriodicPwPoly(PwPoly):
+    """Periodic piecewise polynomial function.
+
+    Like PwPoly, except first and last knot points xk are the same point,
+    but advanced by one period.  Input arguments to the function will be
+    reduced to this period before evaluation, so there is no extrapolation.
+
+    Note that when you initialize a PeriodicPwPoly, you must explicitly
+    supply the duplicate final point at the end of the period.
+    """
+    def __init__(self, *args, **kwargs):
+        super(PeriodicPwPoly, self).__init__(*args, **kwargs)
+        if len(self.xk) < 2:
+            raise ValueError("cannot create periodic function with <2 knots")
+        # set extrapolation to guard against roundoff error
+        self.c[...,0] = self.c[...,1]
+        self.c[...,-1] = polyddx(self.c[...,-2], self.xk[-1]-self.xk[-2])
+        self.period = self.xk[-1] - self.xk[0]
+    def __call__(self, x, nd=0):
+        x0 = self.xk[0]
+        x = x0 + (x - x0)%self.period
+        super(PeriodicPwPoly, self).__call__(x, nd)
 
 ########################################################################
 # alternative PwPoly constructors are implemented as functions
@@ -647,9 +675,27 @@ def pwfit(x, y, xk, n=1, sigy=1.0, stats=False, given=None):
     p : PwPoly
         The PwPoly with knots xk and degree n that best fits the given(x,y).
         With stats set, also returns:
+
+    See Also
+    --------
+    spline : construct spline
+    bspline : construct B-spline
+    pwfit : piecewise polynomial fit to scattered data
+    PwPoly : piecewise polynomial class
     """
 
-def spline(x, y, n=3, lo=None, hi=None):
+def pline(x, y, extrap=None, periodic=False):
+    """Return a piecewise linear fit through given points (x,y).
+
+    Convenience shorthand for spline(x, y, n=1).
+
+    Note that pline(x, y) by default is constant before the first x and
+    after the final x.  Use pline(x, y, 1) to extrapolate using the
+    linear function in the first and last intervals.
+    """
+    return spline(x, y, n=1, extrap=extrap, periodic=periodic)
+
+def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
     """Construct a PwPoly as a spline fit through given points (x,y).
 
     A spline is a piecewise polynomial of degree n (default 3) passing
@@ -687,47 +733,202 @@ def spline(x, y, n=3, lo=None, hi=None):
     n : int, optional
         The degree of the PwPoly.  Defaults to 3, a piecewise cubic spline.
         (Note that the PwPoly constructor gives the piecewise linear spline.)
-    lo : array_like
-    hi : array_like
-        Boundary conditions at the endpoints x[0] and x[-1].
+    lo : tuple of array_like, optional
+    hi : tuple of array_like, optional
+        Boundary conditions at the endpoints x[0] and x[-1].  Each tuple
+        represents the values of (dydx, d2ydx2, d3ydx3, ...) at x[0] for lo
+        or x[-1] for hi.  Use None for a derivative to be not specified.
+        The highest derivative you can specify is n-1, that is d2ydx2 for
+        a cubic spline, dydx for a quadratic spline, and so on.  For the
+        special case that you only wish to specify dydx at an endpoint,
+        lo or hi need not be a tuple (dydx,); spline accepts simply dydx
+        to mean (dydx, None, None, ...).  The maximum number of derivatives
+        you can specify in both lo and hi is n-1, that is, 2 for a cubic
+        spline, 4 for a pentic, and so on.  If you specify fewer than n-1
+        derivatives, spline will set the highest unspecified derivatives
+        to zero, begining with lo and alternating lo, hi, lo, etc., until
+        n-1 derivative are specified.  For example, if you specify neither
+        lo nor hi for a cubic spline, then spline sets d2ydx2=0 at both
+        endpoints, and the "natural spline" with zero curvature at the
+        endpoints is the default.  This is equivalent to lo=(None,0.),
+        hi=(None,0.).  Note that the derivatives are broadcast to the leading
+        dimensions of y.
+    periodic : bool
+        True to make all derivatives match at first and last points of x.
+        This produces a PeriodicPwPoly function, which maps any inputs
+        outside the first and last points of x into that interval.
+    extrap : int or (int,int)
+        Degree to maintain continuity beyond endpoints, can be set separately
+        for before first and after last interval.
+
+    See Also
+    --------
+    pline : construct polyline
+    bspline : construct B-spline
+    pwfit : piecewise polynomial fit to scattered data
+    PwPoly : piecewise polynomial class
     """
     # any way to generate other members of family with different BCs?
     # yes -- just pass 0*y and desired BCs
-    x, y = np.asfarray(x), np.asfarray(y)
-    dtype = np.promote_types(x.dtype, y.dtype)
+    x, y = asfarray(x), asfarray(y)
+    dtype = promote_types(x.dtype, y.dtype)
     x, y = x.astype(dtype), y.astype(dtype)
     nk = len(x)
     if x.ndim!=1 or nk<2:
         raise ValueError("x must be 1D array_like with at least two points")
+    shape = y.shape
+    if shape[-1] != nk:
+        raise ValueError("y must have same final axis as x")
+    shape = shape[:-1]
+    nm1 = n - 1
+    if extrap is None:
+        extrap = (nm1, nm1)
+    elif not isinstance(extrap, tuple):
+        extra = (extrap, extrap)
+    if x[0] > x[-1]:  # as a convenience, permit monotonic decreasing x
+        x, y = x[::-1].copy(), y[...,::-1].copy()
+        lo, hi = hi, lo
+        extrap = extrap[::-1]
+    if not isinstance(lo, tuple):  lo = (lo,)
+    if not isinstance(hi, tuple):  hi = (hi,)
+    if len(lo)>nm1 or len(hi)>nm1:
+        raise ValueError("cannot specify more than n-1st derivative in bc")
     if n < 2:
-        if (lo is not None) or (hi is not None):
-            raise ValueError("no boundary conditions allowed for n=1 spline")
-        return PwPoly(x, y)
-    m = polyddx(eye(1+n, dtype=dtype), np.ones((), dtype=dtype))[:-1,1:]
+        p = PeriodicPwPoly(x, y) if periodic else PwPoly(x, y)
+        xk, c = p.xk, p.c
+        c[...,0] = c[...,1]
+        c[extrap[0]+1:,...,0] = 0
+        if len(xk) > 1:
+            c[...,-1] = polyddx(p.c[...,-2], xk[-1]-xk[-2])
+            c[extrap[1]+1:,...,-1] = 0
+        return p
+    if periodic and (lo or hi or extrap):
+        raise ValueError("periodic boundary conditions preclude lo or hi")
+    else:
+        nlo = len(lo) - lo.count(None)
+        nhi = len(hi) - hi.count(None)
+        missing = nm1 - (nlo+nhi)
+        if missing:
+            # insert default boundary conditions where unspecified
+            lo = list(lo + (None,)*(nm1 - len(lo)))
+            hi = list(hi + (None,)*(nm1 - len(hi)))
+            i = n - 2
+            while missing:
+                if i < 0:
+                    raise IndexError("impossible error, logic bug?")
+                if lo[i] is None:
+                    lo[i] = 0.    # fill in missing BC with zero
+                    missing -= 1
+                if missing and hi[i] is None:
+                    hi[i] = 0.    # fill in missing BC with zero
+                    missing -= 1
+                i -= 1
+            lo = tuple(lo)
+            hi = tuple(hi)
+        if periodic:
+            # periodicity "truth" test logic unclear, so just make it so
+            y = y.copy()
+            y[...,-1] = y[...,0]
+    nlo = len(lo)
+    nhi = len(hi)
+    one = ones((), dtype=dtype)
+    m = polyddx(eye(1+n, dtype=dtype), one)[:-1,1:]
     # [[  1.,   1.,   1.,   1.,   1.],
     #  [  1.,   2.,   3.,   4.,   5.],
     #  [  0.,   1.,   3.,   6.,  10.],
     #  [  0.,   0.,   1.,   4.,  10.],
     #  [  0.,   0.,   0.,   1.,   5.]]  for example, when n=5
-    m = np.concatenate((m, np.zeros_like(m)), axis=1).ravel()
-    diags = []
+    m = concatenate((m, zeros_like(m)), axis=1).ravel()
+    nun = (nk-1)*n        # number of unknowns
+    diags = one.repeat(nun)  # begin with subdiagonal
+    diags[nm1::n] = 0     # 1 1 1 1 0 1 1 1 1 0 ... 1 1 1 1    when n=5
+    diags = [diags]
     strd = n+n+1
-    neq = (nk-1)*n + 1  # number of equations
-    for i in range(n-1):
-        mi = m[i:i+n*strd:strd][np.newaxis].repeat(nk,axis=0).ravel()[1:neq]
-        diags.append(mi)
-    dlo = np.ones_like(mi)
-    dlo[n-1::n] = 0    # 1 1 1 1 0 1 1 1 1 0 ... 1 1 1 1 0  when n=5
+    for i in range(nm1):  # continue with diagonal and superdiagonals
+        _ = m[i:i+n*strd:strd][newaxis].repeat(nk,axis=0).ravel()[1:nun]
+        diags.append(roll(_, i, axis=-1))
+    dx = x[1:] - x[:-1]     # nk-1 differences
     if nk > 2:
-        dx = x[1:] - x[:-1]     # nk-1 differences
+        # matching at knot between intervals needs powers of interval ratio
         dxr = dx[1:] / dx[:-1]  # nk-2 ratios of intervals
-        dxr = dxr[:,np.newaxis] + np.zeros((1,n), dtype=dtype)
+        dxr = dxr[:,newaxis].repeat(n, axis=1)
         dxr[:,0] = -1
         dxr = dxr.cumprod(axis=1)
         dxr[:,0] = 1   # (nk-2)*[1,-dxr,-dxr**2,...,-dxr**(n-1)]
     else:
-        dxr = np.array([], dtype=dtype)
-    diags.append(np.concatenate((dxr.ravel(), np.ones((1,),dtype=dtype))))
+        dxr = array([], dtype=dtype)
+    diags.append(concatenate((dxr.ravel(), dlo[0:1])))  # last superdiagonal
+    zero = zeros(shape)
+    rhs = zero[...,newaxis].repeat(nun, axis=-1)
+    rhs[...,0::n] = y[...,1:] - y[...,:-1]
+    # translate BCs into matrix (row, RHS) pairs, exactly n-1 pairs total
+    lo, rhsl = _spline_get_bc(lo, zero, x[1]-x[0], nun)
+    hi, rhsh = _spline_get_bc(hi, zero, x[-1]-x[-2], nun, (nk-2)*n)
+    diags = array(lo + diags + hi)
+    zero = zero[...,newaxis]
+    rhs = concatenate((zero.repeat(nlo,axis=-1), rhs, zero.repeat(nhi,axis=-1)))
+    rhs[...,0:nlo] = rhsl
+    if nhi: rhs[...,-nhi:] = rhsh
+    # note: numpy.linalg.solve does multiple solves since numpy 1.4
+    #  scipy.linalg.solve_banded since before 0.7
+    if shape:
+        # solve_banded wants additional y dimensions last
+        rhs = rhs.reshape(prod(shape), nun).T.copy()
+    nlnu = (1+nlo, nm1-nlo)
+    rhs = solve_banded(nlnu, m, rhs, overwrite_ab=(not periodic),
+                       overwrite_b=True, check_finite=True)
+    if periodic:
+        # So far, we have natural spline solution with highest derivatives
+        # at first and last knots equal zero.  Now solve each BC=1 with all
+        # others =0 to derive n-1 more conditions for continuity of the
+        # function.  (All dy are zero in these solves.)
+        b = zeros(nun, nm1, dtype=dtype)
+        for i in range(nm1):
+            if i < nlo:
+                b[i, i] = 1
+            else:
+                b[i-nm1, i] = 1
+        b = solve_banded(nlnu, m, b, overwrite_ab=True,
+                         overwrite_b=True, check_finite=True)
+        # translate b in last interval to final knot point
+        bhi = concatenate((zeros_like(b[0:1,:]), b[-nm1:,:]), axis=0)
+        bhi = polyddx(bhi, one)[1:]
+        dxr = (dx[0]/dx[-1]).repeat(nm1).cumprod()
+        m = dxr.dot(bhi) - b[0:nm1,:]
+        # compute discontinuities in natural spline solution
+        db = concatenate((zeros_like(rhs[0:1,...]), rhs[-nm1:,...]), axis=0)
+        db = dxr.dot(polyddx(db, one)[1:]) - rhs[0:nm1,...]
+        db = solve(m, -db, overwrite_a=True, overwrite_b=True,
+                   check_finite=False)
+        # m.dot(db) + drhs = 0 is periodic BC, adjust rhs accordingly
+        rhs += b.dot(db)
+    rdxn = 1./dx[:,newaxis].repeat(n, axis=1).cumprod(axis=1).ravel()
+    rhs = rdxn.dot(rhs)
+    rhs = transpose(rhs.reshape(nk-1, n, prod(shape)), (1,2,0))
+    rhs = rhs.reshape((n,) + shape + (nk-1,))
+    c = concatenate((rhs[0:1,...], rhs), axis=0)
+    c = concatenate((c, c[...,-1:]), axis=-1)
+    c[0,...] = y
+    c = concatenate((c[...,0:1], c), axis=-1)
+    c[...,-1] = polyddx(c[...,-2], dx[-1])
+    if not periodic:
+        c[extrap[0]+1:,...,0] = 0
+        c[extrap[1]+1:,...,-1] = 0
+    return PeriodicPwPoly(x, c) if periodic else PwPoly(x, c)
+
+def _spline_get_bc(bc, zero, dx, nun, shift=0):
+    rb = ([], [])
+    if bc is not None:
+        dtype = zero.dtype
+        row = roll(array([1., 0.], dtype=dtype).repeat([1,nun-1]), shift)
+        dxn = array(dx, dtype=dtype)
+        for ybnd in bc:
+            if ybnd is not None:
+                rb[0].append(row)
+                rb[1].append(asarray(ybnd,dtype=dtype)*dxn+zero))
+            row = roll(row, 1)
+            dxn *= dx
+    return rb
 
 def bspline(x, y, n=3, s=None, lo=None, hi=None, periodic=None):
     pass
@@ -809,25 +1010,25 @@ def polyddx(c, x, nd=None, norm=False):
     if nd is None:
         nd = shape[0] - 1
     # prepend axis for derivative order 0,1,2,..,nd in result
-    p = np.concatenate((p[np.newaxis], np.zeros((nd,)+p.shape)))
+    p = concatenate((p[newaxis], zeros((nd,)+p.shape)))
     q = p[0:nd]
     if nd:
         p[1] = c[-1]
     c = c.reshape(shape[0:1]+(1,)+shape[1:])  # leading 1 for concatenate
     for cn in c[-3::-1]:
-        cn = np.concatenate((cn, q))
+        cn = concatenate((cn, q))
         p *= x   # modify p in place so view q remains valid
         p += cn
     if norm and nd:
-        p[1:] *= np.arange(nd).cumprod().reshape((nd,)+(1,)*(p.ndim-1))
+        p[1:] *= arange(nd).cumprod().reshape((nd,)+(1,)*(p.ndim-1))
     return p
 
 def _polysetup(c, x):
-    c, x = np.asarray(c), np.asarray(x)
+    c, x = asarray(c), asarray(x)
     try:
         p = c[-2] + c[-1]*x
     except IndexError:
-        p = c[-1] + np.zeros_like(x)
+        p = c[-1] + zeros_like(x)
     return c, x, p
 
 ########################################################################
