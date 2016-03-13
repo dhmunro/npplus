@@ -644,6 +644,79 @@ class PeriodicPwPoly(PwPoly):
         super(PeriodicPwPoly, self).__call__(x, nd)
 
 ########################################################################
+# B-spline curves deserve their own class orthogonal to PwPoly
+# In practice, best to derive a PwPoly from the Bspline
+
+class Bspline(object):
+    """A B-spline is a clever representation of a piecewise polynomial.
+
+    The PwPoly class is more efficient for computing function values, but
+    the Bspline class may more clearly represent the function properties.
+    The Bspline order is one plus the polynomial degree (that is, the
+    number of polynomial coefficients).  A Bspline has the high-order
+    continuity of a spline -- missing from the PwPoly constructor -- and
+    the locality of the PwPoly constructor missing from a spline.  (Locality
+    means that only order of the Bspline control points affect the function
+    value at any given point.  In a spline, changing any of the specified
+    values changes the function at nearly every point.)  What a Bspline
+    gives up is the specification of the function values themselves; you
+    specify only control points rather than function values.  For fitting
+    problems there is no reason to prefer function values over control points.
+
+    Parameters
+    ----------
+    t : 1D array_like, or int
+        The knot vector, a monotonic list of numbers.  If t is a decreasing
+        sequence, both t and p will be reversed.
+        The t vector may contain repeated values; it need not be strictly
+        monotonic, merely non-decreasing (or non-increasing).  A knot value
+        that repeats m times has multiplicity m.  The piecewise polynomial
+        has at least k-1-m continuous derivatives.
+        Alternatively, t is the order k (degree plus one) of the B-spline.
+    p : array_like
+        The final index of p must have a length k less than the length of t,
+        where k is the order of the B-spline.  The degree of the piecewise
+        polynomial in t is k-1.  Any leading dimensions of p represent a
+        B-spline curve in multiple dimensions.
+    periodic : optional int
+        If non-zero, p.shape[-1] must equal len(t), and periodic is the
+        order (degree plus one) of the B-spline.  The first and last p
+        values should be equal, so t and p represent one period with its
+        first point duplicated, so that t[-1]-t[0] represents the period
+        in t.
+
+    The B-spline curve does not necessarily pass through any of the p; they
+    are "control points".  The important feature of these control points is
+    locality: The polynomial on the interval t[i] <= t < t[i+1] is completely
+    determined by the k p-values p[...,i-k+1] through p[...,i].  The
+    B-spline curve is defined only on the interval t[k-1] <= t <= t[1-k]
+    (that is, omitting the first and last k-1 t intervals), because outside
+    this interval, the curve depends on fewer than k p-values.  In fact,
+    each p value is associated with the ranges t[j] <= t <= t[j+k].  There
+    are k such ranges, namely j=i-k+1 through j=i if t is in interval i.
+
+    A Bezier curve of order k (degree k-1) is a B-spline with 2*k knot points
+    and only two values, each of multiplicity k.
+
+    The deBoor recursion algorithm defines the piecewise polynomial in terms
+    of the values of p and t:
+
+        P[i,0](u) = p[...,i] if t[i] <= u < t[i+1] else 0
+        P[i,j](u) = ((t[i+k-j]-u)*P[i-1,j-1](u) + (u-t[i])*P[i,j-1])
+                    / (t[i+k-j] - t[i])
+
+    and the function value is P[i,k-1](u) when t[i] <= u < t[i+1].
+
+    The derivative is a B-spline of order k-1 (degree k-2) with
+
+        pdot[...,i] = (k-1) * (p[...,i] - p[...,i-1]) / (t[i+k-1] - t[i])
+
+    where p[...,i-1] = 0 for i=0 and p[...,i] = 0 for i=len(t)-k.  Note
+    that p.shape[-1]=len(t)-k, but that pdot.shape[-1]=len(t)-k+1, because
+    pdot has order k-1.
+    """
+
+########################################################################
 # alternative PwPoly constructors are implemented as functions
 
 def pwfit(x, y, xk, n=1, sigy=1.0, stats=False, given=None):
@@ -678,6 +751,7 @@ def pwfit(x, y, xk, n=1, sigy=1.0, stats=False, given=None):
 
     See Also
     --------
+    pline : general piecewise linear interpolator
     spline : construct spline
     bspline : construct B-spline
     pwfit : piecewise polynomial fit to scattered data
@@ -925,7 +999,7 @@ def _spline_get_bc(bc, zero, dx, nun, shift=0):
         for ybnd in bc:
             if ybnd is not None:
                 rb[0].append(row)
-                rb[1].append(asarray(ybnd,dtype=dtype)*dxn+zero))
+                rb[1].append(asarray(ybnd,dtype=dtype)*dxn+zero)
             row = roll(row, 1)
             dxn *= dx
     return rb
@@ -1011,16 +1085,16 @@ def polyddx(c, x, nd=None, norm=False):
         nd = shape[0] - 1
     # prepend axis for derivative order 0,1,2,..,nd in result
     p = concatenate((p[newaxis], zeros((nd,)+p.shape)))
-    q = p[0:nd]
+    q = p[0:nd]  # crucial that this is a view into p, not a copy
     if nd:
         p[1] = c[-1]
-    c = c.reshape(shape[0:1]+(1,)+shape[1:])  # leading 1 for concatenate
+    cns = zeros_like(p)
     for cn in c[-3::-1]:
-        cn = concatenate((cn, q))
+        cns[0], cns[1:] = cn, q   # shift cn into cns
         p *= x   # modify p in place so view q remains valid
-        p += cn
+        p += cns
     if norm and nd:
-        p[1:] *= arange(nd).cumprod().reshape((nd,)+(1,)*(p.ndim-1))
+        p[1:] *= arange(1,nd+1).cumprod().reshape((nd,)+(1,)*(p.ndim-1))
     return p
 
 def _polysetup(c, x):
