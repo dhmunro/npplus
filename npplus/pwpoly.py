@@ -4,7 +4,7 @@
 from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
 from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
-from numpy import prod, isclose, allclose, transpose
+from numpy import prod, cumprod, isclose, allclose, transpose
 from numpy.linalg import inv
 from scipy.linalg import solve_banded, solve
 
@@ -1104,6 +1104,29 @@ def _polysetup(c, x):
     except IndexError:
         p = c[-1] + zeros_like(x)
     return c, x, p
+
+def deboor(order, knots, pts, t):
+    deg, knots, pts, t = order-1, asarray(knots), asarray(pts), asarray(t)
+    tshape, t = t.shape, t.ravel()
+    pshape = pts.shape[:-1]
+    pts = pts.reshape(prod(pshape), pts.shape[-1])
+    # find it with t in [it,it+1], but force it>=deg and it<=K-deg
+    it = knots[order:-order-1].searchsorted(t) + deg  # t in [it,it+1]
+    # result depends on p[it-deg], p[it-deg+1], ..., p[it]
+    it = it - arange(order).reshape(order, 1)
+    p = pts[:, it]
+    t = t.reshape(1, 1, len(t))
+    for j in range(1,order):
+        # it, a, p all 3D arrays:
+        # (leading axes of pts, consecutive intervals, axes of t)
+        # Each deBoor iteration involves a smaller number of consecutive
+        # intervals, beginning with deg and ending with 1.
+        it = it[:, :-1 ,:]
+        a = knots[it]
+        a = (t - a) / (knots[it+order-j] - a)
+        q = p[:, 1:, :]
+        p = q + a*(p[:, :-1, :] - q)
+    return p.reshape(pshape+tshape)
 
 ########################################################################
 # useful special cases
