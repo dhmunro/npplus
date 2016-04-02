@@ -10,23 +10,27 @@ zcen(x, axis=)       pairwise averages, like diff (pairwise differences)
 pcen(x, axis=)       zcen, but copy endpoints
 """
 
-__all__ = ['spanl', 'max_', 'min_', 'abs_', 'atan', 'cum', 'zcen', 'pcen']
+__all__ = ['span', 'spanl', 'max_', 'min_', 'abs_', 'atan',
+           'cum', 'zcen', 'pcen']
 
-import numpy as np
+from numpy import asarray, asanyarray, asfarray, zeros, zeros_like
+from numpy import sign, log, absolute, log, exp, maximum, minimum, concatenate
+from numpy import arctan, arctan2, pi
+from numpy.linalg import norm
 
-def spanl(start, stop, num=50, dtype=None):
-    """Return numbers with equal ratios (log spaced) between start and stop.
-
-    Both start and stop may be negative, but they may not have
-    opposite sign, nor may either be zero.
+def span(start, stop, num=100, axis=0, dtype=None):
+    """Return numbers with equal spacing between start and stop.
 
     Parameters
     ----------
-    start : float
-    stop : float
-    num : int, optional (default 50)
+    start : array_like
+    stop : array_like, conformable with start
+    num : int, optional (default 100)
+    axis : int, optional
+        If start and stop are not scalars, the position of the new axis
+        in the result (first by default).
     dtype : dtype, optional
-        Type of output array, default infers from inputs.
+        Type of output array, default infers from start and stop.
 
     Returns
     -------
@@ -36,25 +40,68 @@ def spanl(start, stop, num=50, dtype=None):
 
     See Also
     --------
-    linspace, arange
+    spanl, linspace, arange, logspace
     """
-    s = np.sign(start)
-    start = np.log(np.absolute(start))
-    stop = np.log(s * stop)
-    if dtype is not None:
-        s = np.asarray(s, dtype=dtype)
-    return s * np.exp(linspace(start, stop, num, dtype=dtype))
+    start, stop = asfarray(start), asfarray(stop)
+    shape = zeros_like(start + stop)
+    start, stop = start+shape, stop+shape
+    shape = shape.shape
+    if axis < 0:
+        axis = axis + len(shape)+1
+    shape = shape[:axis] + (1,) + shape[axis:]
+    start, stop = start.reshape(shape), stop.reshape(shape)
+    s = start.repeat(num, axis=axis)
+    ds = ((stop-start)/(num-1)).repeat(num-1, axis=axis)
+    shape = (slice(None),)*axis + (slice(1,None),)
+    s[shape] += ds.cumsum(axis=axis)
+    shape = shape[:axis] + (slice(-1,None),)
+    s[shape] = stop   # eliminate roundoff error from final point
+    return s.astype(dtype) if dtype else s
+
+def spanl(start, stop, num=100, axis=0, dtype=None):
+    """Return numbers with equal ratios (log spaced) between start and stop.
+
+    Both start and stop may be negative, but they may not have
+    opposite sign, nor may either be zero.
+
+    Parameters
+    ----------
+    start : array_like
+    stop : array_like, conformable with start
+    num : int, optional (default 100)
+    axis : int, optional
+        If start and stop are not scalars, the position of the new axis
+        in the result (first by default).
+    dtype : dtype, optional
+        Type of output array, default infers from start and stop.
+
+    Returns
+    -------
+    samples : ndarray
+        samples[0] == `start`, samples[num-1] == `stop`,
+        with equal ratios between successive intervening values
+
+    See Also
+    --------
+    span, logspace, linspace, arange
+    """
+    start, stop = asfarray(start), asfarray(stop)
+    s, start = sign(start), absolute(start)
+    stop = s * stop
+    if (stop <= 0.).any():
+        raise TypeError("start and stop must be non-zero and same sign")
+    return s * exp(span(log(start), log(stop), num, dtype=dtype))
 
 def max_(a, *args):
     """Return elementwise maximum of any number of arguments."""
     for b in args:
-        a = np.maximum(a, b)
+        a = maximum(a, b)
     return a
 
 def min_(a, *args):
     """Return elementwise minimum of any number of arguments."""
     for b in args:
-        a = np.minimum(a, b)
+        a = minimum(a, b)
     return a
 
 # note this does more sqrt operations than needed
@@ -64,9 +111,9 @@ def min_(a, *args):
 def abs_(a, *args):
     """Return elementwise 2-norm of any number of arguments."""
     if not args:
-        return np.absolute(a)
+        return absolute(a)
     for b in args:
-        a = np.linalg.norm((a,b), axis=0)
+        a = norm((a,b), axis=0)
     return a
 
 def atan(a, b=None, out=None, branch=None):
@@ -94,11 +141,11 @@ def atan(a, b=None, out=None, branch=None):
     arguably `branch=0`, which returns `0<=angle<2*pi` as expected.
     """
     if b is None:
-        return np.arctan(a, out=out)
-    a = np.arctan2(a, b, out=out)
+        return arctan(a, out=out)
+    a = arctan2(a, b, out=out)
     if branch is None:
         return a
-    tp = 2.*np.pi
+    tp = 2.*pi
     # return tp - (branch-a)%tp + branch
     return (a-branch)%tp + branch
 
@@ -140,16 +187,16 @@ def cum(a, axis=-1):
     array([[0, 1, 2, 3, 4],
            [0, 2, 4, 6, 8]])
     """
-    a = np.asanyarray(a)
+    a = asanyarray(a)
     if not a.shape:
-        raise ValueError("Cannot apply cum to a scalar value.")
+        raise TypeError("Cannot apply cum to a scalar value.")
     if axis is None:
         a = a.ravel()
         z = [1]
     else:
         z = list(a.shape)
         z[axis] = 1
-    return np.concatenate((np.zeros(z, dtype=a.dtype), a.cumsum(axis=axis)),
+    return concatenate((zeros(z, dtype=a.dtype), a.cumsum(axis=axis)),
                           axis=axis)
 
 def zcen(a, axis=-1):
@@ -189,11 +236,11 @@ def zcen(a, axis=-1):
     array([[ 3.,  4.,  5.,  6.]])
     """
     # see lib/function_base.py: diff
-    a = np.asanyarray(a)
+    a = asanyarray(a)
     if not a.shape:
-        raise ValueError("Cannot zone center a scalar value.")
+        raise TypeError("Cannot zone center a scalar value.")
     if a.shape[axis] < 2:
-        raise ValueError("Cannot zone center an axis with only one element.")
+        raise TypeError("Cannot zone center an axis with only one element.")
     slice1 = [slice(None)] * a.ndim
     slice2 = list(slice1)
     slice1[axis] = slice(1, None)
@@ -232,18 +279,18 @@ def pcen(a, axis=-1):
            [ 3.,  4.,  5.,  6.],
            [ 5.,  6.,  7.,  8.]])
     """
-    a = np.asanyarray(a)
+    a = asanyarray(a)
     if not a.shape:
-        raise ValueError("Cannot point center a scalar value.")
+        raise TypeError("Cannot point center a scalar value.")
     s1 = [slice(None)] * a.ndim
     s2 = list(s1)
     s1[axis] = slice(0, 1)      # [0:1]
     s2[axis] = slice(-1, None)  # [-1:]
     if a.shape[axis] < 2:
-        return np.concatenate((a[tuple(s1)], a[tuple(s2)]), axis=axis)
+        return concatenate((a[tuple(s1)], a[tuple(s2)]), axis=axis)
     slice1, slice2 = list(s1), list(s1)
     slice1[axis] = slice(1, None)   # [1:]
     slice2[axis] = slice(None, -1)  # [:-1]
-    return np.concatenate((a[tuple(s1)],
-                           (a[tuple(slice1)] + a[tuple(slice2)]) * 0.5,
-                           a[tuple(s2)]), axis=axis)
+    return concatenate((a[tuple(s1)],
+                        (a[tuple(slice1)] + a[tuple(slice2)]) * 0.5,
+                        a[tuple(s2)]), axis=axis)
