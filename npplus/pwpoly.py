@@ -4,7 +4,7 @@
 from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
 from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
-from numpy import prod, cumprod, isclose, allclose, transpose
+from numpy import prod, cumprod, isclose, allclose, transpose, ones_like
 from numpy.linalg import inv
 from scipy.linalg import solve_banded, solve
 
@@ -80,7 +80,8 @@ class PwPoly(object):
     c : coefficient array, axes are [degree, dimensionality, knots+1]
         The polynomial coefficients are for the polynomial in (x-xk[i-1]),
         where xk[i-1] <= x < xk[i], except for c[...,0], which like c[...,1]
-        is for the polynomial in (x-xk[0]).
+        is for the polynomial in (x-xk[0]).  Coefficients are in order of
+        increasing powers of x.
 
     Properties
     ----------
@@ -310,6 +311,17 @@ class PwPoly(object):
         value : float, optional
             return values of x for which piecewise polynomial equals value
         """
+        # ideas:
+        # (1) check jumps for discontinuous roots
+        # (2) Use Descartes rule of signs to eliminate intervals with
+        #     no possibility of roots.  First, count count sign changes in
+        #     coefficients as given -- if none, eliminate this interval.
+        #     Next, compute coefficients at end of interval, change
+        #     sign of odd coefficients, and count sign changes.  If none,
+        #     eliminate the interval.  Side effect: eliminates constant
+        #     intervals.
+        # (3) special case piecewise linear
+        # (4) use eigenvalue solver for degree>=2
         c = self.c.copy()
         if c.ndim != 2:
             raise ValueError("cannot find roots of multidimensional function")
@@ -317,7 +329,8 @@ class PwPoly(object):
             c[0] -= value
         xk, xk0 = self.xk, self.xk0
         dx = xk - xk0[:-1]
-        yhi = polyfun(c[:,:-1], dx)
+        cup = polyddx(c[:,:-1], dx)  # coefficients at end of intervals
+        yhi = cup[0]
         ylo = c[0, 1:]
         x = xk[yhi*ylo <= 0.]  # list of knots where jumps across zero
         n = c.shape[0] - 1
@@ -328,31 +341,58 @@ class PwPoly(object):
             dx = concatenate((dx, dx[-1:]))
         else:
             dx = array([1., 1.])
+        dx = dxsave
         dxn = dx + zeros((n+1,)+dx.shape)
         dxn[0] = 1
         dxn = dxn.cumprod(axis=0)  # [1, dx, dx**2, ..., dx**n]
-        c *= dxn  # scale each interval to (0,1)
+        c *= dxn;  cup *= dxn  # scale each interval to (0,1)
+        # Descartes rule of signs: must be at least one sign change if root>0
+        maybe = ((c[1:] < 0) != (c[:-1] < 0)).sum(axis=0) > 0
+        maybe[0] = True  # no dx>0 test for left semi-infinite interval
+        cup[1::2] = -cup[1::2]  # change sign of odd upper coefficients
+        maybe[:-1] &= ((cup[1:] < 0) != (cup[:-1] < 0)).sum(axis=0) > 0
+        c, dx, xk0 = c[:,maybe], dx[maybe], xk0[maybe]
         deg = absolute(c)
         deg = (deg > tol*deg.max(axis=0)) * arange(n+1)[:,newaxis]
         deg = deg.max(axis=0)  # effective degree in each interval
-        x = [x]
+        x = [x] if x.size else []
+        linear = (deg == 1)
+        if any(linear):
+            cup = c[0:2, linear]
+            xi = -cup[0,:] / cup[1,:]
+            mask = (xi >= 0.)
+            # semi-infinite intervals are special cases
+            if maybe[0] and linear[0]:
+                mask[0] = (xi[0] <= 0.)
+            elif not (maybe[-1] and linear[-1]):
+                mask &= (xi <= 1.)
+            if any(mask):
+                xi = xi[mask]
+                linear &= mask
+                x.append(xi*dx[linear] + xk0[linear])
+        linear = (deg > 1)  # actually means non-linear here
+        check_first = maybe[0] and linear[0]
+        check_last = maybe[-1] and linear[-1]
+        # for non-linear intervals, fall back to generaic root finder
+        # this loop over intervals is slow but unavoidable
+        c, dx, xk0 = c[:,linear], dx[linear], xk0[linear]
         nold, imax = -1, len(xk)
         for i, ci in enumerate(c.T):  # loop on knot intervals
             n = deg[i]
-            if n < 1: continue
             if n != nold:
                 m = zeros((n, n), dtype=c.dtype)
                 m.reshape(n*n)[n::n+1] = 1
-            m[:, -1] = -ci[:-1] / ci[-1]
+            m[:, -1] = -ci[:n] / ci[n]
             xi = linalg.eigvals(m)
             xok, xi = isreal(xi), real(xi)
-            if i == 0:
+            if (i == 0) and check_first:
                 xok &= (xi <= 0.)
-            elif i < imax:
+            elif (i < imax) or not check_last:
                 xok &= (xi >= 0.) & (xi <= 1.)
             else:
                 xok &= (xi >= 0.)
-            if not any(xok): continue
+            if not any(xok):
+                continue
             x.append(xi[xok]*dx[i] + xk0[i])  # undo (0,1) dx c scaling
         x = concatenate(x)
         x.sort()
@@ -360,7 +400,7 @@ class PwPoly(object):
         if len(x) > 1:
             mask = ones(x.shape, dtype=bool)
             i = xk.searchsorted(x)
-            dx = dx[i]
+            dx = dxsave[i]
             d = x[1:] - x[:-1]
             dx = 0.5*(dx[1:] + dx[:-1])
             mask[1:] = d > tol*dx
@@ -1106,6 +1146,7 @@ def _polysetup(c, x):
     return c, x, p
 
 def deboor(order, knots, pts, t):
+    """evaluate Bspline by deBoor algorithm"""
     deg, knots, pts, t = order-1, asarray(knots), asarray(pts), asarray(t)
     tshape, t = t.shape, t.ravel()
     pshape = pts.shape[:-1]
@@ -1125,8 +1166,95 @@ def deboor(order, knots, pts, t):
         a = knots[it]
         a = (t - a) / (knots[it+order-j] - a)
         q = p[:, 1:, :]
-        p = q + a*(p[:, :-1, :] - q)
+        p = q + a*(p[:, :-1, :] - q) # build polynomial in t
     return p.reshape(pshape+tshape)
+
+def _bspl2coef(p):
+    p = asfarray(p)
+    k = p.shape[0]
+    p = p[newaxis].repeat(k,axis=0);  p[1:] = 0
+    p1, p0 = p[:-1,1:], p[:-1,:-1]
+    for i in range(k-1):
+        p[1:,:-1] += p1 - p0
+    return p[:,0].copy()
+
+def _coef2bspl(c):
+    c = asfarray(c)
+    k = c.shape[0]
+    c = c / bico(k,dtype=c.dtype).reshape((k,)+(1,)*(c.ndim-1))
+    c = c[newaxis].repeat(k,axis=0);  c[1:] = 0
+    c0 = c[0]
+    for c1 in c[1:]:
+        c1[:-1] = c0[1:] + c0[:-1]
+        c0 = c1
+    return c[:,0].copy()
+
+def _bico(k, dtype=float):
+    b = zeros(k, dtype=dtype);  b[0] = 1
+    for i in range(k-1):
+        b[1:] = b[1:] + b[:-1]  # note that += fails!
+    return b
+
+def bspline_basis(t, order, upto=False):
+    """compute B-spline basis functions for given knot vector
+
+    B[i,1] = 1 if t[i]<=t<t[i+1] else 0
+    B[i,k+1] = B[i,k]*(t-t[i])/(t[i+k]-t[i])
+               + B[i+1,k]*(t[i+k+1]-t)/(t[i+k+1]-t[i+1])
+             = 0 for t<=t[i] or t>=t[i+k]
+
+    For each of k intervals (i,i+1), ..., (j,j+1), ... (i+k-1,i+k),
+    return k coefficients of polynomial in t-t[j].
+
+    Parameters
+    ----------
+    t : 1D array_like, non-decreasing
+        the knot vector, with repeated values to represent multiplicity
+    order : int
+        the order of the basis
+    upto : bool, optional
+        if set, return list of all bases <= order
+
+    Returns
+    -------
+    b : 3D array_like
+        shape (order,order,len(t)-order) polynomial coefficients
+
+    If t[j] <= t < t[j+1], where i <= j < i+k, then b[:,j-i,i] are the
+    polynomial coefficients of t-t[j] for B[i,k](t) in interval j.
+    """
+    t = asfarray(t).ravel()
+    dt = t[1:] - t[:-1]
+    if dt.min() < 0 or dt.size < order:
+        raise ValueError("t must be non-decreasing and len(t) > order")
+    upto = [] if upto else None
+    tshift = zeros((order+1,) + t.shape, dtype=t.type)
+    tshift[0] = t
+    tmp = t
+    for ts in tshift[1:]:
+        ts[:-1] = tmp[1:]
+        tmp = ts
+    tbeg, tend = tshift[:-1,:-1], tshift[1:,:-1]  # associated with Bik
+    dtik = tend - tbeg
+    rdtik = where(dtik, 1., 0.)/where(dtik, dtik, 1.)
+    dtik = dt.reshape(1, dt.size).repeat(order, axis=0)
+    for k in range(1, order):
+        dtik[k,:-k] = t[k+1:] - t[:-k-1]
+    b = zeros((order,)+dtk.shape, dtype=dt.dtype)
+    b[0,0] = 1.
+    if upto is not None:
+        upto.append(b[0:1,0:1,:].copy())
+    # b(k+1)[:,j-i,i] = (t-t[i])*bn(k)[:,j-i,i] + (t[i+1+k]-t)*bn[:,j-i-1,i+1]
+    # where first term only up to i+k, second only beyond i+1, and
+    # bn[:,j-i,i] = b(k)[:,j-i,i] / (t[i+k] - t[i])  for all 0 <= j-i < k
+    #    t-t[i] = t-t[j] + t[j]-t[i]             i <= j < i+k
+    #    t[i+1+k]-t = t[i+1+k]-t[j] - (t-t[j])   i+1 <= j < i+1+k
+    #        t[i+1+k]-t[j] = t[i+1+k]-t[i+1] - (t[j]-t[i+1])
+    for k in range(2,order+1):  # k is current order
+        dtk = dtik[k-1]
+        rdtk = where(dtk, 1., 0.)/where(dtk, dtk, 1.)
+        b *= rdtk
+        b1 = b[:,:-1,1:].copy() # = B[i+1,k] / (t[i+k+1]-t[i+1])
 
 ########################################################################
 # useful special cases
