@@ -10,12 +10,12 @@ zcen(x, axis=)       pairwise averages, like diff (pairwise differences)
 pcen(x, axis=)       zcen, but copy endpoints
 """
 
-__all__ = ['span', 'spanl', 'max_', 'min_', 'abs_', 'atan',
+__all__ = ['span', 'spanl', 'cat_', 'stk_', 'max_', 'min_', 'abs_', 'atan',
            'cum', 'zcen', 'pcen']
 
-from numpy import asarray, asanyarray, asfarray, zeros, zeros_like
+from numpy import array, asarray, asanyarray, asfarray, zeros, zeros_like
 from numpy import sign, log, absolute, log, exp, maximum, minimum, concatenate
-from numpy import arctan, arctan2, pi
+from numpy import arctan, arctan2, pi, result_type
 from numpy.linalg import norm
 
 def span(start, stop, num=100, axis=0, dtype=None):
@@ -91,6 +91,102 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
     if (stop <= 0.).any():
         raise TypeError("start and stop must be non-zero and same sign")
     return s * exp(span(log(start), log(stop), num, dtype=dtype))
+
+def cat_(*args, **kwargs):
+    """concatenate arrays on one axis
+
+    This is like np.concatenate, except that the input arrays are passed
+    as multiple arguments rather than as a sequence in one argument, and,
+    more importantly, they are broadcast to a common shape on all axes
+    except the one being joined.
+
+    Parameters
+    ----------
+    a1, a2, ... : array_like
+        The arrays to be joined.  The arrays will be broadcast to a common
+        shape over all axes except the one being joined.
+
+    Keywords
+    --------
+    axis : int, optional
+        The axis along which to join the arrays, by default axis=0, meaning
+        the first axis of the input with the maximum number of dimensions.
+
+    Returns
+    -------
+    joined : ndarray
+        The concatenated array.
+    """
+    axis = kwargs.pop('axis', 0)
+    if kwargs:
+        axis = list(kwargs.keys())
+        raise TypeError("unrecognized keyword argument: "+axis[0])
+    alist, dtype, ndim = [], None, 0
+    for a in args:  # first pass collects shapes
+        a = asanyarray(a)
+        t = a.dtype
+        dtype = t if dtype is None else result_type(dtype, t)
+        ndim = max(ndim, a.ndim)
+        alist.append(a)
+    if ndim < 1: ndim = 1
+    if axis<-ndim or axis>=ndim:
+        ValueError("axis keyword is out of bounds")
+    shape = array([(1,)*(ndim-a.ndim)+a.shape for a in alist])
+    lens = shape[:,axis].copy()
+    shape[:,axis] = lens.sum()
+    result = zeros(shape.max(axis=0), dtype=dtype)
+    i, leading = 0, ((slice(None),)*ndim)[:axis]
+    for di, a in zip(lens, alist):  # second pass broadcasts into result
+        result[leading+(slice(i,i+di),)] = a
+        i += di
+    return result
+
+def stk_(*args, **kwargs):
+    """stack arrays on one axis
+
+    This is like np.stack, except that the input arrays are broadcast to
+    a common shape before stacking, so that they need only be conformable
+    rather than exactly the same shape.
+
+    Parameters
+    ----------
+    a1, a2, ... : array_like
+        The arrays to be joined.  The arrays will be broadcast to a common
+        shape before being joined.
+
+    Keywords
+    --------
+    axis : int, optional
+        The axis for the new dimension in the result, by default axis=0,
+        meaning the first axis of the result.
+
+    Returns
+    -------
+    joined : ndarray
+        The stacked array.  The shape is
+    """
+    axis = kwargs.pop('axis', 0)
+    if kwargs:
+        axis = list(kwargs.keys())
+        raise TypeError("unrecognized keyword argument: "+axis[0])
+    alist, dtype, ndim = [], None, 0
+    for a in args:  # first pass collects shapes
+        a = asanyarray(a)
+        t = a.dtype
+        dtype = t if dtype is None else result_type(dtype, t)
+        ndim = max(ndim, a.ndim)
+        alist.append(a)
+    if axis<-ndim-1 or axis>ndim>0:
+        raise ValueError("axis keyword is out of bounds")
+    shape = array([(1,)*(ndim-a.ndim)+a.shape for a in alist])
+    shape = tuple(shape.max(axis=0))
+    if axis < 0: axis = ndim+1 + axis
+    s, t = shape[:axis], shape[axis:]
+    result = zeros(s+(len(alist),)+t, dtype=dtype)
+    s = ((slice(None),)*ndim)[:axis]
+    for i, a in enumerate(alist):  # second pass broadcasts into result
+        result[s+(i,)] = a
+    return result
 
 def max_(a, *args):
     """Return elementwise maximum of any number of arguments."""
@@ -197,7 +293,7 @@ def cum(a, axis=-1):
         z = list(a.shape)
         z[axis] = 1
     return concatenate((zeros(z, dtype=a.dtype), a.cumsum(axis=axis)),
-                          axis=axis)
+                       axis=axis)
 
 def zcen(a, axis=-1):
     """Zone center, computing means of adjacent elements along an axis.
