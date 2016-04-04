@@ -5,7 +5,7 @@ from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
 from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
 from numpy import prod, cumprod, isclose, allclose, transpose, ones_like
-from numpy.linalg import inv
+from numpy.linalg import inv, eigvals
 from scipy.linalg import solve_banded, solve
 
 class PwPoly(object):
@@ -116,7 +116,7 @@ class PwPoly(object):
             return
         xk = asfarray(xk)
         if xk.ndim != 1:
-            raise ValueError("xk must be 1D array_like")
+            raise TypeError("xk must be 1D array_like")
         nk = xk.size
         if nk>1 and xk[-1]<xk[0]:
             # as a convenience, reverse xk and args so xk increasing
@@ -133,13 +133,13 @@ class PwPoly(object):
         args = asfarray(array(args))  # copy of some float type
         nda = args.ndim - 2  # additional dimensions of args
         if nda < 0:
-            raise ValueError("yk and derivatives must be at least 1D")
+            raise TypeError("yk and derivatives must be at least 1D")
         dtype = promote_types(xk.dtype, args.dtype)
         if args.shape[-1] != nk+1:
             if args.shape[-1] != nk:
-                raise ValueError("yk trailing axis inconsistent with xk size")
+                raise TypeError("yk trailing axis inconsistent with xk size")
             if nk < 2:
-                raise ValueError("xk needs at least 2 points when yk same size")
+                raise TypeError("xk needs at least 2 points when yk same size")
             # convert args from derivatives to polynomial coefficients
             h = args.shape[0] - 1
             fact = maximum(arange(h+1, dtype=dtype), 1).cumprod()
@@ -212,7 +212,7 @@ class PwPoly(object):
         if m is None:
             # not particularly efficient, but terse
             m = polyddx(eye(2*h+2, h+1, -h-1), 1., h)
-            cls._two_sided_cache[h] = m = linalg.inv(m)
+            cls._two_sided_cache[h] = m = inv(m)
         # Note that the matrix becomes ill-conditioned quickly as h increases
         # should be fine for polynomials up to degree 10 or so (h~5).  The
         # whole strategy of the PwPoly algorithm for computing the polynomials
@@ -284,7 +284,7 @@ class PwPoly(object):
         consts = zeros((m,) + c.shape[1:-1])
         lbnd = asfarray(lbnd)
         if lbnd.ndim:
-            raise ValueError("lower bound must be scalar")
+            raise TypeError("lower bound must be scalar")
         dxlb = self.xk0 - lbnd
         if k is not None:
             k = asfarray(k)
@@ -324,7 +324,7 @@ class PwPoly(object):
         # (4) use eigenvalue solver for degree>=2
         c = self.c.copy()
         if c.ndim != 2:
-            raise ValueError("cannot find roots of multidimensional function")
+            raise TypeError("cannot find roots of multidimensional function")
         if value:
             c[0] -= value
         xk, xk0 = self.xk, self.xk0
@@ -383,7 +383,7 @@ class PwPoly(object):
                 m = zeros((n, n), dtype=c.dtype)
                 m.reshape(n*n)[n::n+1] = 1
             m[:, -1] = -ci[:n] / ci[n]
-            xi = linalg.eigvals(m)
+            xi = eigvals(m)
             xok, xi = isreal(xi), real(xi)
             if (i == 0) and check_first:
                 xok &= (xi <= 0.)
@@ -452,7 +452,7 @@ class PwPoly(object):
             n = self.c.shape[0] - 1
         xk = asarray(xk)
         if xk.ndim != 1:
-            raise ValueError("new knot points must be 1D array_like")
+            raise TypeError("new knot points must be 1D array_like")
         if xk[0] > xk[-1]:
             xk = xk[::-1]  # permit decreasing xk as convenience
         h = (n - 1) // 2
@@ -493,7 +493,7 @@ class PwPoly(object):
             if xk is self.xk:
                 return self
             if xk.ndim != 1:
-                raise ValueError("new knot points must be 1D array_like")
+                raise TypeError("new knot points must be 1D array_like")
             elif len(xk) == len(self.xk):
                 return self
         ic = self.xk.searchsorted(0.5 * (xk[1:] + xk[:-1]))
@@ -657,23 +657,23 @@ class PwPoly(object):
     def __truediv__(self, other):
         this, other, numb = self._binary(other)
         if not numb:
-            raise ValueError("cannot divide by a PwPoly")
+            raise TypeError("cannot divide by a PwPoly")
         return self.new(this.xk0, this.c / other)
 
-class PeriodicPwPoly(PwPoly):
+class PerPwPoly(PwPoly):
     """Periodic piecewise polynomial function.
 
     Like PwPoly, except first and last knot points xk are the same point,
     but advanced by one period.  Input arguments to the function will be
     reduced to this period before evaluation, so there is no extrapolation.
 
-    Note that when you initialize a PeriodicPwPoly, you must explicitly
+    Note that when you initialize a PerPwPoly, you must explicitly
     supply the duplicate final point at the end of the period.
     """
     def __init__(self, *args, **kwargs):
-        super(PeriodicPwPoly, self).__init__(*args, **kwargs)
+        super(PerPwPoly, self).__init__(*args, **kwargs)
         if len(self.xk) < 2:
-            raise ValueError("cannot create periodic function with <2 knots")
+            raise TypeError("cannot create periodic function with <2 knots")
         # set extrapolation to guard against roundoff error
         self.c[...,0] = self.c[...,1]
         self.c[...,-1] = polyddx(self.c[...,-2], self.xk[-1]-self.xk[-2])
@@ -681,7 +681,7 @@ class PeriodicPwPoly(PwPoly):
     def __call__(self, x, nd=0):
         x0 = self.xk[0]
         x = x0 + (x - x0)%self.period
-        super(PeriodicPwPoly, self).__call__(x, nd)
+        super(PerPwPoly, self).__call__(x, nd)
 
 ########################################################################
 # B-spline curves deserve their own class orthogonal to PwPoly
@@ -759,7 +759,7 @@ class Bspline(object):
 ########################################################################
 # alternative PwPoly constructors are implemented as functions
 
-def pwfit(x, y, xk, n=1, sigy=1.0, stats=False, given=None):
+def pwfit(x, y, xk, n=1, sigy=1.0, per=False):
     """Construct a PwPoly that is the least squares best fit to given data.
 
     Parameters
@@ -768,7 +768,8 @@ def pwfit(x, y, xk, n=1, sigy=1.0, stats=False, given=None):
     y : array_like
         The given (x,y) data points to be fit.
         The y data may have additional leading dimensions compared to x, in
-        order to fit a curve in a multi-dimensional space.
+        order to fit a curve in a multi-dimensional space with x as a
+        parameter.
     xk : 1D array_like
         The knot points for the PwPoly fit.
     n : int, optional
@@ -777,11 +778,10 @@ def pwfit(x, y, xk, n=1, sigy=1.0, stats=False, given=None):
         Standard deviations of the points y, must be conformable with y.
         Points will be weighted as 1/sigy**2.  Without sigy (by default)
         all y values are weighted equally.
-    stats : bool, optional
-        If True, returns covariances and other fitting statistics in addition
-        to the PwPoly fit itself.
-    given : array_like
-        Constraints on the fit.
+        Note that the "weight" argument to scipy.interpolate.splrep and
+        splprep is 1/sigy -- there, "weight" means the square root of the
+        corresponding term in the chi-square sum.
+    per : bool, optional
 
     Returns
     -------
@@ -798,18 +798,7 @@ def pwfit(x, y, xk, n=1, sigy=1.0, stats=False, given=None):
     PwPoly : piecewise polynomial class
     """
 
-def pline(x, y, extrap=None, periodic=False):
-    """Return a piecewise linear fit through given points (x,y).
-
-    Convenience shorthand for spline(x, y, n=1).
-
-    Note that pline(x, y) by default is constant before the first x and
-    after the final x.  Use pline(x, y, 1) to extrapolate using the
-    linear function in the first and last intervals.
-    """
-    return spline(x, y, n=1, extrap=extrap, periodic=periodic)
-
-def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
+def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     """Construct a PwPoly as a spline fit through given points (x,y).
 
     A spline is a piecewise polynomial of degree n (default 3) passing
@@ -867,9 +856,9 @@ def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
         endpoints is the default.  This is equivalent to lo=(None,0.),
         hi=(None,0.).  Note that the derivatives are broadcast to the leading
         dimensions of y.
-    periodic : bool
+    per : bool
         True to make all derivatives match at first and last points of x.
-        This produces a PeriodicPwPoly function, which maps any inputs
+        This produces a PerPwPoly function, which maps any inputs
         outside the first and last points of x into that interval.
     extrap : int or (int,int)
         Degree to maintain continuity beyond endpoints, can be set separately
@@ -878,27 +867,27 @@ def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
     See Also
     --------
     pline : construct polyline
-    bspline : construct B-spline
     pwfit : piecewise polynomial fit to scattered data
     PwPoly : piecewise polynomial class
     """
     # any way to generate other members of family with different BCs?
     # yes -- just pass 0*y and desired BCs
-    x, y = asfarray(x), asfarray(y)
+    x, y = map(asfarray, (x, y))
     dtype = promote_types(x.dtype, y.dtype)
     x, y = x.astype(dtype), y.astype(dtype)
     nk = len(x)
     if x.ndim!=1 or nk<2:
-        raise ValueError("x must be 1D array_like with at least two points")
+        raise TypeError("x must be 1D array_like with at least two points")
     shape = y.shape
     if shape[-1] != nk:
-        raise ValueError("y must have same final axis as x")
+        raise TypeError("y must have same final axis as x")
     shape = shape[:-1]
+    nshape = prod(shape)
     nm1 = n - 1
     if extrap is None:
         extrap = (nm1, nm1)
     elif not isinstance(extrap, tuple):
-        extra = (extrap, extrap)
+        extrap = (extrap, extrap)
     if x[0] > x[-1]:  # as a convenience, permit monotonic decreasing x
         x, y = x[::-1].copy(), y[...,::-1].copy()
         lo, hi = hi, lo
@@ -906,9 +895,9 @@ def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
     if not isinstance(lo, tuple):  lo = (lo,)
     if not isinstance(hi, tuple):  hi = (hi,)
     if len(lo)>nm1 or len(hi)>nm1:
-        raise ValueError("cannot specify more than n-1st derivative in bc")
+        raise TypeError("cannot specify more than n-1st derivative in bc")
     if n < 2:
-        p = PeriodicPwPoly(x, y) if periodic else PwPoly(x, y)
+        p = PerPwPoly(x, y) if per else PwPoly(x, y)
         xk, c = p.xk, p.c
         c[...,0] = c[...,1]
         c[extrap[0]+1:,...,0] = 0
@@ -916,35 +905,33 @@ def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
             c[...,-1] = polyddx(p.c[...,-2], xk[-1]-xk[-2])
             c[extrap[1]+1:,...,-1] = 0
         return p
-    if periodic and (lo or hi or extrap):
-        raise ValueError("periodic boundary conditions preclude lo or hi")
-    else:
-        nlo = len(lo) - lo.count(None)
-        nhi = len(hi) - hi.count(None)
-        missing = nm1 - (nlo+nhi)
-        if missing:
-            # insert default boundary conditions where unspecified
-            lo = list(lo + (None,)*(nm1 - len(lo)))
-            hi = list(hi + (None,)*(nm1 - len(hi)))
-            i = n - 2
-            while missing:
-                if i < 0:
-                    raise IndexError("impossible error, logic bug?")
-                if lo[i] is None:
-                    lo[i] = 0.    # fill in missing BC with zero
-                    missing -= 1
-                if missing and hi[i] is None:
-                    hi[i] = 0.    # fill in missing BC with zero
-                    missing -= 1
-                i -= 1
-            lo = tuple(lo)
-            hi = tuple(hi)
-        if periodic:
-            # periodicity "truth" test logic unclear, so just make it so
-            y = y.copy()
-            y[...,-1] = y[...,0]
-    nlo = len(lo)
-    nhi = len(hi)
+    if per and (lo or hi or extrap):
+        raise TypeError("periodic boundary conditions preclude lo or hi")
+    nlo = len(lo) - lo.count(None)
+    nhi = len(hi) - hi.count(None)
+    missing = nm1 - (nlo+nhi)
+    if missing:
+        # insert default boundary conditions where unspecified
+        lo = list(lo + (None,)*(nm1 - len(lo)))
+        hi = list(hi + (None,)*(nm1 - len(hi)))
+        i = n - 2
+        while missing:
+            if i < 0:
+                raise IndexError("impossible error, logic bug?")
+            if lo[i] is None:
+                lo[i] = 0.    # fill in missing BC with zero
+                missing -= 1
+                nlo += 1
+            if missing and hi[i] is None:
+                hi[i] = 0.    # fill in missing BC with zero
+                missing -= 1
+                nhi += 1
+            i -= 1
+        lo = tuple(lo)
+        hi = tuple(hi)
+    if per:
+        y = y.copy()
+        y[...,-1] = y[...,0]  # ignore given y[-1], assume same as y[0]
     one = ones((), dtype=dtype)
     m = polyddx(eye(1+n, dtype=dtype), one)[:-1,1:]
     # [[  1.,   1.,   1.,   1.,   1.],
@@ -956,11 +943,14 @@ def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
     nun = (nk-1)*n        # number of unknowns
     diags = one.repeat(nun)  # begin with subdiagonal
     diags[nm1::n] = 0     # 1 1 1 1 0 1 1 1 1 0 ... 1 1 1 1    when n=5
+    diags[-n:] = 0        # last interval has no matching conditions
     diags = [diags]
     strd = n+n+1
     for i in range(nm1):  # continue with diagonal and superdiagonals
-        _ = m[i:i+n*strd:strd][newaxis].repeat(nk,axis=0).ravel()[1:nun]
-        diags.append(roll(_, i, axis=-1))
+        d = m[i::strd][newaxis].repeat(nk,axis=0).ravel()[0:nun]
+        d = roll(d, i, axis=-1)
+        d[i-nm1:] = 0  # x^n coefficient in last interval
+        diags.append(d)
     dx = x[1:] - x[:-1]     # nk-1 differences
     if nk > 2:
         # matching at knot between intervals needs powers of interval ratio
@@ -969,29 +959,39 @@ def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
         dxr[:,0] = -1
         dxr = dxr.cumprod(axis=1)
         dxr[:,0] = 1   # (nk-2)*[1,-dxr,-dxr**2,...,-dxr**(n-1)]
+        dxr = concatenate((dxr[0][0:n-1], dxr.ravel(), dxr[0][0:1]))
     else:
-        dxr = array([], dtype=dtype)
-    diags.append(concatenate((dxr.ravel(), dlo[0:1])))  # last superdiagonal
-    zero = zeros(shape)
+        dxr = ones(n, dtype=dtype)
+    dxr[0:n-1] = 0
+    diags.append(dxr)  # last superdiagonal
+    zero = zeros(shape, dtype=dtype)
     rhs = zero[...,newaxis].repeat(nun, axis=-1)
     rhs[...,0::n] = y[...,1:] - y[...,:-1]
     # translate BCs into matrix (row, RHS) pairs, exactly n-1 pairs total
-    lo, rhsl = _spline_get_bc(lo, zero, x[1]-x[0], nun)
-    hi, rhsh = _spline_get_bc(hi, zero, x[-1]-x[-2], nun, (nk-2)*n)
-    diags = array(lo + diags + hi)
-    zero = zero[...,newaxis]
-    rhs = concatenate((zero.repeat(nlo,axis=-1), rhs, zero.repeat(nhi,axis=-1)))
-    rhs[...,0:nlo] = rhsl
-    if nhi: rhs[...,-nhi:] = rhsh
+    lo, rhsl = _spline_get_bc(lo, zero, dx[0], nm1)
+    hi, rhsh = _spline_get_bc(hi, zero, dx[-1], nm1, True)
+    rhs = roll(rhs, nlo)
+    nu, nl = nm1-nlo, 1+nlo
+    if nlo:
+        rhs[...,0:nlo] = rhsl
+        # lo is n-1 by n-1 lower triangular
+        for i, d in enumerate(lo):
+            diags[i+2][0:d.size] = d
+    if nhi:
+        rhs[...,-nhi:] = rhsh
+        # hi is n-1 by n-1 upper triangular
+        for i, d in enumerate(hi):
+            diags[nm1-1-i][-d.size-1:-1] = d
+    diags = array(diags[::-1])  # nu upper, principal, nl lower
     # note: numpy.linalg.solve does multiple solves since numpy 1.4
     #  scipy.linalg.solve_banded since before 0.7
     if shape:
         # solve_banded wants additional y dimensions last
-        rhs = rhs.reshape(prod(shape), nun).T.copy()
-    nlnu = (1+nlo, nm1-nlo)
-    rhs = solve_banded(nlnu, m, rhs, overwrite_ab=(not periodic),
+        rhs = rhs.reshape(nshape, nun).T.copy()
+    nlnu = (nl, nu)
+    rhs = solve_banded(nlnu, diags, rhs, overwrite_ab=(not per),
                        overwrite_b=True, check_finite=True)
-    if periodic:
+    if per:
         # So far, we have natural spline solution with highest derivatives
         # at first and last knots equal zero.  Now solve each BC=1 with all
         # others =0 to derive n-1 more conditions for continuity of the
@@ -1016,36 +1016,70 @@ def spline(x, y, n=3, lo=(), hi=(), periodic=False, extrap=None):
                    check_finite=False)
         # m.dot(db) + drhs = 0 is periodic BC, adjust rhs accordingly
         rhs += b.dot(db)
-    rdxn = 1./dx[:,newaxis].repeat(n, axis=1).cumprod(axis=1).ravel()
-    rhs = rdxn.dot(rhs)
-    rhs = transpose(rhs.reshape(nk-1, n, prod(shape)), (1,2,0))
+    rdxn = 1./dx.reshape(nk-1, 1).repeat(n, axis=1).cumprod(axis=1).ravel()
+    if shape:
+        rdxn = rxdn.reshape(nun, 1)
+    rhs *= rdxn
+    rhs = transpose(rhs.reshape(nk-1, n, nshape), (1,2,0)).copy()
     rhs = rhs.reshape((n,) + shape + (nk-1,))
     c = concatenate((rhs[0:1,...], rhs), axis=0)
     c = concatenate((c, c[...,-1:]), axis=-1)
     c[0,...] = y
     c = concatenate((c[...,0:1], c), axis=-1)
     c[...,-1] = polyddx(c[...,-2], dx[-1])
-    if not periodic:
+    if not per:
         c[extrap[0]+1:,...,0] = 0
         c[extrap[1]+1:,...,-1] = 0
-    return PeriodicPwPoly(x, c) if periodic else PwPoly(x, c)
+    return PerPwPoly.new(x, c) if per else PwPoly.new(x, c)
 
-def _spline_get_bc(bc, zero, dx, nun, shift=0):
-    rb = ([], [])
+def _spline_get_bc(bc, zero, dx, nm1, upper=False):
+    mat, rhs = [], []
     if bc is not None:
         dtype = zero.dtype
-        row = roll(array([1., 0.], dtype=dtype).repeat([1,nun-1]), shift)
-        dxn = array(dx, dtype=dtype)
+        row = array([1., 0.], dtype=dtype).repeat([1,nm1-1])
+        dxn = array(dx)
         for ybnd in bc:
             if ybnd is not None:
-                rb[0].append(row)
-                rb[1].append(asarray(ybnd,dtype=dtype)*dxn+zero)
+                mat.append(row)
+                rhs.append(asarray(ybnd,dtype=dtype)*dxn + zero)
+                # adding zero ensures broadcast to full rhs shape
             row = roll(row, 1)
             dxn *= dx
-    return rb
+        n = nm1+1
+        if len(mat) < nm1:
+            zero = [zeros_like(row)] * (nm1 - len(mat))
+        else:
+            zero = []
+        if upper:
+            mat, rhs, strd = mat[::-1]+zero, rhs[::-1], 1
+        else:
+            mat, strd = zero+mat, nm1
+        mat, diag, i1 = array(mat).ravel(), [], -1
+        for i in range(nm1-1, -1, -1):
+            d = mat[i*strd::n]
+            diag.append(d)
+            if d.any():
+                i1 = len(diag)
+        diag = diag[:i1]
+    return diag, rhs
 
-def bspline(x, y, n=3, s=None, lo=None, hi=None, periodic=None):
-    pass
+def pline(x, y, extrap=None, per=False):
+    """Return a piecewise linear fit through given points (x,y).
+
+    Convenience shorthand for spline(x, y, n=1), intended as a more
+    general version of the interp function with a slightly different
+    interface:
+
+        pline(x, y)(xp)  <--->  interp(xp, x, y)
+
+    But pline permits y to have additional dimensions and x can be a
+    decreasing series.
+
+    Note that pline(x, y) by default is constant before the first x and
+    after the final x.  Use pline(x, y, 1) to extrapolate using the
+    linear function in the first and last intervals.
+    """
+    return spline(x, y, n=1, extrap=extrap, per=per)
 
 # Also expose these as static constuctor methods of the PwPoly class,
 # so that simply importing PwPoly (or having an instance) gives access.
@@ -1053,7 +1087,6 @@ def bspline(x, y, n=3, s=None, lo=None, hi=None, periodic=None):
 # straightforward enough.
 PwPoly.fit = staticmethod(pwfit)
 PwPoly.spline = staticmethod(spline)
-PwPoly.bspline = staticmethod(bspline)
 
 ########################################################################
 # workhorse functions
@@ -1226,7 +1259,7 @@ def bspline_basis(t, order, upto=False):
     t = asfarray(t).ravel()
     dt = t[1:] - t[:-1]
     if dt.min() < 0 or dt.size < order:
-        raise ValueError("t must be non-decreasing and len(t) > order")
+        raise TypeError("t must be non-decreasing and len(t) > order")
     upto = [] if upto else None
     tshift = zeros((order+1,) + t.shape, dtype=t.type)
     tshift[0] = t
