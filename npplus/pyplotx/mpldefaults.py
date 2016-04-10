@@ -65,7 +65,6 @@ def title(s, *args, **kwargs):
     ret = kwargs.pop('ret', None)
     if y is None:
         kwargs = dict(y=1.03, **kwargs)
-    t = plt.title(s, *args, **kwargs)
-    if ret:  # only return Text object if specifically requested
-        return t
+    plt.title(s, *args, **kwargs)
+    # use plt.title if you need the return value, like pltwraps
 title.__doc__ = plt.title.__doc__
