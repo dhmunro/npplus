@@ -1,4 +1,4 @@
-# Tweaks to set default matplotlib style:
+# Set nicer default matplotlib style:
 # 1. Ensure matplotlib 2.0 colormaps present and viridis default.
 # 2. Simple CBQ interface for ColorBrewer color sets for linestyle cycling.
 #    Make default color cycle based on ColorBrewer Set1 (minus yellow).
@@ -16,8 +16,11 @@ __all__ = ['magma', 'inferno', 'plasma', 'viridis', 'CBQ', 'title']
 
 import matplotlib.pyplot as plt
 from matplotlib import rc
-from .mpl2cmaps import magma, inferno, plasma, viridis
 from .cbqcolors import CBQ
+try:
+    from matplotlib.pyplot import magma, inferno, plasma, viridis
+except ImportError:
+    from .mpl2cmaps import magma, inferno, plasma, viridis
 
 # color cycle for plot() lines
 CBQ.set_color_cycle('set1ny')  # 'dark2' a good second choice

@@ -1080,7 +1080,7 @@ def cminst(name):
     See help(colormaps) for more information
     """.format(name)
     install_cmap.__name__ = name
-    install_cmap.__module__ = 'mpl2cmaps'
+    install_cmap.__module__ = __name__
     return install_cmap
 magma, inferno, plasma, viridis = map(cminst, ('magma', 'inferno', 'plasma',
                                                'viridis'))

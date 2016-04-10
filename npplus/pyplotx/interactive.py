@@ -14,7 +14,7 @@ from pylab import *
 from ..interactive import *
 
 # fix matplotlib defaults for better interactive experience
-from .mpltweak import *
+from .mpldefaults import *
 
 # turn on matplotlib.pyplot interactive mode
 plt.ion()
