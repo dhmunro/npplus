@@ -62,7 +62,10 @@ rc('ytick.major', width = 1.4)
 # need to use title(text, y=1.03) with outward ticks
 def title(s, *args, **kwargs):
     y = kwargs.get('y')
+    ret = kwargs.pop('ret', None)
     if y is None:
         kwargs = dict(y=1.03, **kwargs)
-    return plt.title(s, *args, **kwargs)
+    t = plt.title(s, *args, **kwargs)
+    if ret:  # only return Text object if specifically requested
+        return t
 title.__doc__ = plt.title.__doc__
