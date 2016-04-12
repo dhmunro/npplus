@@ -13,16 +13,18 @@ xylim() : same as plt.axis(), since axis, xlim, ylim now return None
 """
 
 # require alternatives: axis
-__all__ = ['annotate', 'axhline', 'axhspan', 'axvline', 'axvspan', 'bar',
-           'barbs', 'barh', 'boxplot', 'broken_barh', 'colorbar',
-           'contour', 'contourf', 'errorbar', 'eventplot', 'figimage',
-           'figlegend', 'figtext', 'fill', 'fill_between', 'fill_betweenx',
-           'hexbin', 'hist', 'hist2d', 'hlines', 'imshow', 'legend',
-           'pcolor', 'pcolormesh', 'pie', 'plot', 'plot_date', 'quiver',
-           'scatter', 'stem', 'step', 'streamplot', 'suptitle', 'text',
-           'title', 'tricontour', 'tricontourf', 'tripcolor', 'triplot',
-           'violinplot', 'vlines', 'xlabel', 'xlim', 'ylabel', 'ylim']
-# later append: 'xylim'
+__all__ = ['annotate', 'axhline', 'axhspan', 'axvline', 'axvspan',
+           'bar', 'barbs', 'barh', 'boxplot', 'broken_barh',
+           'colorbar', 'contour', 'contourf', 'errorbar', 'eventplot',
+           'figimage', 'figlegend', 'figtext', 'figure', 'fill',
+           'fill_between', 'fill_betweenx', 'hexbin', 'hist',
+           'hist2d', 'hlines', 'imshow', 'legend', 'pcolor',
+           'pcolormesh', 'pie', 'plot', 'plot_date', 'quiver',
+           'scatter', 'stem', 'step', 'streamplot', 'subplot',
+           'suptitle', 'text', 'title', 'tricontour', 'tricontourf',
+           'tripcolor', 'triplot', 'violinplot', 'vlines', 'xlabel',
+           'xlim', 'ylabel', 'ylim']
+# later append: 'xylim', 'logxy'
 
 from functools import wraps as _wraps
 import matplotlib.pyplot as plt  # name plt cannot appear in __all__ list
@@ -38,7 +40,27 @@ for _ in __all__:
     _iwrap(_)
 
 def xylim():
-    """Return xmin, xmax, ymin, ymax of the current axes."""
-    return plt.axis()
+    """Set xmin, xmax, ymin, ymax limits for the current axes, return None."""
+    plt.axis()
 
-__all__ += ['xylim']
+def logxy(islog=None, islogy=Ellipsis):
+    """Alternative to xscale, yscale for setting log or linear axes.
+
+    Parameters
+    ----------
+    islog : bool, optional
+        True means to use log scale for axes, False means linear scale.
+        None or omitted means leave axis scaling unchanged.
+    islogy : bool, optional
+        If islogy omitted, islog applies to both x and y axes.
+        If islogy provided, islog applies only to the x axis and islogy
+        applies to the y axis; values have the same meaning as for islog.
+    """
+    if islog is not None:
+        plt.xscale('log' if islog else 'linear')
+    if islogy is Ellipsis:
+        islogy = islog
+    if islogy is not None:
+        plt.yscale('log' if islogy else 'linear')
+
+__all__ += ['xylim', 'logxy']
