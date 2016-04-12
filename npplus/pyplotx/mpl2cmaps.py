@@ -1085,6 +1085,3 @@ def cminst(name):
 magma, inferno, plasma, viridis = map(cminst, ('magma', 'inferno', 'plasma',
                                                'viridis'))
 del cminst
-
-# Make viridis the default colormap.
-rc('image', cmap='viridis')

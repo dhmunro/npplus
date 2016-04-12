@@ -22,6 +22,9 @@ try:
 except ImportError:
     from .mpl2cmaps import magma, inferno, plasma, viridis
 
+# Make viridis the default colormap.
+rc('image', cmap='viridis')
+
 # color cycle for plot() lines
 CBQ.set_color_cycle('set1ny')  # 'dark2' a good second choice
 
