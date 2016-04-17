@@ -167,9 +167,9 @@ class PwPoly(object):
             c[0:h+1, ..., 0:nk+1:nk] = args[..., 0:nk:nk-1]
             args = c
         # set up for __call__
-        self.__rawinit(xk, args)  # will always concatenate and copy xk
+        self._rawinit(xk, args)  # will always concatenate and copy xk
 
-    def __rawinit(self, xk, c):
+    def _rawinit(self, xk, c):
         # permits setting xk, c without any copy
         if xk.size == c.shape[-1]:
             self.xk0 = xk
@@ -199,7 +199,7 @@ class PwPoly(object):
         PwPoly results, not a user interface.
         """
         pwp = cls()
-        PwPoly.__rawinit(pwp, xk, c)
+        cls._rawinit(pwp, xk, c)
         return pwp
 
     @classmethod
@@ -670,18 +670,18 @@ class PerPwPoly(PwPoly):
     Note that when you initialize a PerPwPoly, you must explicitly
     supply the duplicate final point at the end of the period.
     """
-    def __init__(self, *args, **kwargs):
-        super(PerPwPoly, self).__init__(*args, **kwargs)
-        if len(self.xk) < 2:
-            raise TypeError("cannot create periodic function with <2 knots")
-        # set extrapolation to guard against roundoff error
-        self.c[...,0] = self.c[...,1]
-        self.c[...,-1] = polyddx(self.c[...,-2], self.xk[-1]-self.xk[-2])
-        self.period = self.xk[-1] - self.xk[0]
     def __call__(self, x, nd=0):
         x0 = self.xk[0]
         x = x0 + (x - x0)%self.period
-        super(PerPwPoly, self).__call__(x, nd)
+        return super(PerPwPoly, self).__call__(x, nd)
+    def _rawinit(self, xk, c):
+        super(PerPwPoly, self)._rawinit(xk, c)
+        if self.xk.size < 2:
+            raise TypeError("cannot create periodic function with <2 knots")
+        # set extrapolation to guard against roundoff error
+        self.c[...,0] = self.c[...,1]  # potentially modify input c array...
+        self.c[...,-1] = polyddx(self.c[...,-2], self.xk[-1]-self.xk[-2])
+        self.period = self.xk[-1] - self.xk[0]
 
 ########################################################################
 # B-spline curves deserve their own class orthogonal to PwPoly
@@ -884,6 +884,8 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     shape = shape[:-1]
     nshape = prod(shape)
     nm1 = n - 1
+    if per and (lo or hi or (extrap is not None)):
+        raise TypeError("periodic boundary conditions preclude lo or hi")
     if extrap is None:
         extrap = (nm1, nm1)
     elif not isinstance(extrap, tuple):
@@ -905,8 +907,6 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
             c[...,-1] = polyddx(p.c[...,-2], xk[-1]-xk[-2])
             c[extrap[1]+1:,...,-1] = 0
         return p
-    if per and (lo or hi or extrap):
-        raise TypeError("periodic boundary conditions preclude lo or hi")
     nlo = len(lo) - lo.count(None)
     nhi = len(hi) - hi.count(None)
     missing = nm1 - (nlo+nhi)
@@ -933,23 +933,21 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
         y = y.copy()
         y[...,-1] = y[...,0]  # ignore given y[-1], assume same as y[0]
     one = ones((), dtype=dtype)
-    m = polyddx(eye(1+n, dtype=dtype), one)[:-1,1:]
+    mhi = polyddx(eye(1+n, dtype=dtype), one)[:-1,1:]
     # [[  1.,   1.,   1.,   1.,   1.],
     #  [  1.,   2.,   3.,   4.,   5.],
     #  [  0.,   1.,   3.,   6.,  10.],
     #  [  0.,   0.,   1.,   4.,  10.],
     #  [  0.,   0.,   0.,   1.,   5.]]  for example, when n=5
-    m = concatenate((m, zeros_like(m)), axis=1).ravel()
+    m = concatenate((mhi, zeros_like(mhi)), axis=1).ravel()
     nun = (nk-1)*n        # number of unknowns
     diags = one.repeat(nun)  # begin with subdiagonal
     diags[nm1::n] = 0     # 1 1 1 1 0 1 1 1 1 0 ... 1 1 1 1    when n=5
-    diags[-n:] = 0        # last interval has no matching conditions
     diags = [diags]
     strd = n+n+1
     for i in range(nm1):  # continue with diagonal and superdiagonals
         d = m[i::strd][newaxis].repeat(nk,axis=0).ravel()[0:nun]
         d = roll(d, i, axis=-1)
-        d[i-nm1:] = 0  # x^n coefficient in last interval
         diags.append(d)
     dx = x[1:] - x[:-1]     # nk-1 differences
     if nk > 2:
@@ -963,58 +961,75 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     else:
         dxr = ones(n, dtype=dtype)
     dxr[0:n-1] = 0
-    diags.append(dxr)  # last superdiagonal
+    diags.append(dxr)  # uppermost superdiagonal
     zero = zeros(shape, dtype=dtype)
     rhs = zero[...,newaxis].repeat(nun, axis=-1)
     rhs[...,0::n] = y[...,1:] - y[...,:-1]
-    # translate BCs into matrix (row, RHS) pairs, exactly n-1 pairs total
-    lo, rhsl = _spline_get_bc(lo, zero, dx[0], nm1)
-    hi, rhsh = _spline_get_bc(hi, zero, dx[-1], nm1, True)
-    rhs = roll(rhs, nlo)
-    nu, nl = nm1-nlo, 1+nlo
+    diags = array(diags[::-1])    # order required for solve_banded
+    lobc = eye(nm1, dtype=dtype)  # n-1 square matrix affected by lo BCs
+    # lobc = diags[:-2, :n]  all zeros initially
+    hibc = mhi[1:].copy()         # (n-1)x(n) matrix affected by hi BCs
+    nlnu = (1+nlo, nm1-nlo)       # how solve_banded will interpret diags
     if nlo:
-        rhs[...,0:nlo] = rhsl
-        # lo is n-1 by n-1 lower triangular
-        for i, d in enumerate(lo):
-            diags[i+2][0:d.size] = d
+        rhs = roll(rhs, nlo, axis=-1)
+        i = 0    # lobc[i], rhs[i] is current row (equation)
+        for bnd in lo:
+            if bnd is None:  # remove row from lobc
+                lobc[i:-1], lobc[-1:] = lobc[i+1:], 0
+            else:            # set rhs and increment row
+                rhs[...,i] = bnd
+                i += 1
+                if i == nlo:
+                    break
+        lobc[nlo:] = 0
+        lobc = roll(lobc, nm1-nlo, axis=0)
+        for i in range(nm1):
+            diags[i,0:nm1-i] = lobc.diagonal(-i)
     if nhi:
-        rhs[...,-nhi:] = rhsh
-        # hi is n-1 by n-1 upper triangular
-        for i, d in enumerate(hi):
-            diags[nm1-1-i][-d.size-1:-1] = d
-    diags = array(diags[::-1])  # nu upper, principal, nl lower
+        i = 0    # hibc[i], rhs[i-nhi] is current row (equation)
+        for bnd in hi:
+            if bnd is None:  # remove row from hibc
+                hibc[i:-1], hibc[-1:] = hibc[i+1:], 0
+            else:            # set rhs and increment row
+                rhs[...,i-nhi] = bnd
+                i += 1
+                if i == nhi:
+                    break
+        hibc[nhi:] = 0
+        diags[-1,-n:-1] = hibc.diagonal(0)
+        for i in range(1,nm1):
+            diags[-1-i,-n+i:] = hibc.diagonal(i)
     # note: numpy.linalg.solve does multiple solves since numpy 1.4
     #  scipy.linalg.solve_banded since before 0.7
     if shape:
         # solve_banded wants additional y dimensions last
         rhs = rhs.reshape(nshape, nun).T.copy()
-    nlnu = (nl, nu)
     rhs = solve_banded(nlnu, diags, rhs, overwrite_ab=(not per),
-                       overwrite_b=True, check_finite=True)
+                       overwrite_b=True, check_finite=False)
     if per:
         # So far, we have natural spline solution with highest derivatives
         # at first and last knots equal zero.  Now solve each BC=1 with all
         # others =0 to derive n-1 more conditions for continuity of the
         # function.  (All dy are zero in these solves.)
-        b = zeros(nun, nm1, dtype=dtype)
+        b = zeros((nun, nm1), dtype=dtype)
         for i in range(nm1):
             if i < nlo:
                 b[i, i] = 1
             else:
                 b[i-nm1, i] = 1
-        b = solve_banded(nlnu, m, b, overwrite_ab=True,
-                         overwrite_b=True, check_finite=True)
+        b = solve_banded(nlnu, diags, b, overwrite_ab=True,
+                         overwrite_b=True, check_finite=False)
         # translate b in last interval to final knot point
-        bhi = concatenate((zeros_like(b[0:1,:]), b[-nm1:,:]), axis=0)
-        bhi = polyddx(bhi, one)[1:]
+        bhi = concatenate((zeros_like(b[0:1,:]), b[-n:,:]), axis=0)
+        bhi = polyddx(bhi, one, nm1)[1:]
         dxr = (dx[0]/dx[-1]).repeat(nm1).cumprod()
         m = dxr.dot(bhi) - b[0:nm1,:]
         # compute discontinuities in natural spline solution
-        db = concatenate((zeros_like(rhs[0:1,...]), rhs[-nm1:,...]), axis=0)
-        db = dxr.dot(polyddx(db, one)[1:]) - rhs[0:nm1,...]
+        db = concatenate((zeros_like(rhs[0:1,...]), rhs[-n:,...]), axis=0)
+        db = dxr.dot(polyddx(db, one, nm1)[1:]) - rhs[0:nm1,...]
         db = solve(m, -db, overwrite_a=True, overwrite_b=True,
                    check_finite=False)
-        # m.dot(db) + drhs = 0 is periodic BC, adjust rhs accordingly
+        # diags.dot(db) + drhs = 0 is periodic BC, adjust rhs accordingly
         rhs += b.dot(db)
     rdxn = 1./dx.reshape(nk-1, 1).repeat(n, axis=1).cumprod(axis=1).ravel()
     if shape:
@@ -1031,37 +1046,6 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
         c[extrap[0]+1:,...,0] = 0
         c[extrap[1]+1:,...,-1] = 0
     return PerPwPoly.new(x, c) if per else PwPoly.new(x, c)
-
-def _spline_get_bc(bc, zero, dx, nm1, upper=False):
-    mat, rhs = [], []
-    if bc is not None:
-        dtype = zero.dtype
-        row = array([1., 0.], dtype=dtype).repeat([1,nm1-1])
-        dxn = array(dx)
-        for ybnd in bc:
-            if ybnd is not None:
-                mat.append(row)
-                rhs.append(asarray(ybnd,dtype=dtype)*dxn + zero)
-                # adding zero ensures broadcast to full rhs shape
-            row = roll(row, 1)
-            dxn *= dx
-        n = nm1+1
-        if len(mat) < nm1:
-            zero = [zeros_like(row)] * (nm1 - len(mat))
-        else:
-            zero = []
-        if upper:
-            mat, rhs, strd = mat[::-1]+zero, rhs[::-1], 1
-        else:
-            mat, strd = zero+mat, nm1
-        mat, diag, i1 = array(mat).ravel(), [], -1
-        for i in range(nm1-1, -1, -1):
-            d = mat[i*strd::n]
-            diag.append(d)
-            if d.any():
-                i1 = len(diag)
-        diag = diag[:i1]
-    return diag, rhs
 
 def pline(x, y, extrap=None, per=False):
     """Return a piecewise linear fit through given points (x,y).
