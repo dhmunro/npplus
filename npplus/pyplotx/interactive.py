@@ -1,6 +1,8 @@
 """Set up for interactive plotting with matplotlib.pylab.
 
-from mplplus.interactive import *
+from npplus.pyplotx.interactive import *
+# uncomment to get inward ticks and box (default outward, no box)
+#style_npp(box=True)
 """
 
 # add npplus.interactive
@@ -16,7 +18,7 @@ from pylab import *
 # wrap plot(), etc. so they return None for use at terminal
 from .pltwraps import *
 
-# fix matplotlib defaults for better interactive experience
+# fix matplotlib defaults for better interactive experience, add style_npp
 from .mpldefaults import *
 
 # turn on matplotlib.pyplot interactive mode
