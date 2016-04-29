@@ -90,8 +90,6 @@ def style_npp(box=None):
         rc('xtick', direction = 'in')
         rc('ytick', direction = 'in')
 
-style_npp()  # set nice defaults initially
-
 # need to use title(text, y=1.03) with outward ticks
 def title(s, *args, **kwargs):
     y = kwargs.get('y')
