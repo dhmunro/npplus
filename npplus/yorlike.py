@@ -10,7 +10,7 @@ zcen(x, axis=)       pairwise averages, like diff (pairwise differences)
 pcen(x, axis=)       zcen, but copy endpoints
 """
 
-__all__ = ['span', 'spanl', 'cat_', 'stk_', 'max_', 'min_', 'abs_', 'atan',
+__all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
            'cum', 'zcen', 'pcen']
 
 from numpy import array, asarray, asanyarray, asfarray, zeros, zeros_like
@@ -141,12 +141,18 @@ def cat_(*args, **kwargs):
         i += di
     return result
 
-def stk_(*args, **kwargs):
+def a_(*args, **kwargs):
     """stack arrays on one axis
 
     This is like np.stack, except that the input arrays are broadcast to
     a common shape before stacking, so that they need only be conformable
     rather than exactly the same shape.
+
+    Primary use cases:
+        a_(2, 3, 5, ...)  # instead of
+        array([2, 3, 5, ...])
+        a_(0, [2, 3, 5])  # instead of
+        array([zeros(3,dtype=int), [2, 3, 5])
 
     Parameters
     ----------
