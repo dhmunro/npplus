@@ -5,6 +5,7 @@ from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
 from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
 from numpy import prod, cumprod, isclose, allclose, transpose, ones_like
+from numpy import bincount
 from numpy.linalg import inv, eigvals
 from scipy.linalg import solve_banded, solve
 
@@ -684,122 +685,10 @@ class PerPwPoly(PwPoly):
         self.period = self.xk[-1] - self.xk[0]
 
 ########################################################################
-# B-spline curves deserve their own class orthogonal to PwPoly
-# In practice, best to derive a PwPoly from the Bspline
-
-class Bspline(object):
-    """A B-spline is a clever representation of a piecewise polynomial.
-
-    The PwPoly class is more efficient for computing function values, but
-    the Bspline class may more clearly represent the function properties.
-    The Bspline order is one plus the polynomial degree (that is, the
-    number of polynomial coefficients).  A Bspline has the high-order
-    continuity of a spline -- missing from the PwPoly constructor -- and
-    the locality of the PwPoly constructor missing from a spline.  (Locality
-    means that only order of the Bspline control points affect the function
-    value at any given point.  In a spline, changing any of the specified
-    values changes the function at nearly every point.)  What a Bspline
-    gives up is the specification of the function values themselves; you
-    specify only control points rather than function values.  For fitting
-    problems there is no reason to prefer function values over control points.
-
-    Parameters
-    ----------
-    t : 1D array_like, or int
-        The knot vector, a monotonic list of numbers.  If t is a decreasing
-        sequence, both t and p will be reversed.
-        The t vector may contain repeated values; it need not be strictly
-        monotonic, merely non-decreasing (or non-increasing).  A knot value
-        that repeats m times has multiplicity m.  The piecewise polynomial
-        has at least k-1-m continuous derivatives.
-        Alternatively, t is the order k (degree plus one) of the B-spline.
-    p : array_like
-        The final index of p must have a length k less than the length of t,
-        where k is the order of the B-spline.  The degree of the piecewise
-        polynomial in t is k-1.  Any leading dimensions of p represent a
-        B-spline curve in multiple dimensions.
-    periodic : optional int
-        If non-zero, p.shape[-1] must equal len(t), and periodic is the
-        order (degree plus one) of the B-spline.  The first and last p
-        values should be equal, so t and p represent one period with its
-        first point duplicated, so that t[-1]-t[0] represents the period
-        in t.
-
-    The B-spline curve does not necessarily pass through any of the p; they
-    are "control points".  The important feature of these control points is
-    locality: The polynomial on the interval t[i] <= t < t[i+1] is completely
-    determined by the k p-values p[...,i-k+1] through p[...,i].  The
-    B-spline curve is defined only on the interval t[k-1] <= t <= t[1-k]
-    (that is, omitting the first and last k-1 t intervals), because outside
-    this interval, the curve depends on fewer than k p-values.  In fact,
-    each p value is associated with the ranges t[j] <= t <= t[j+k].  There
-    are k such ranges, namely j=i-k+1 through j=i if t is in interval i.
-
-    A Bezier curve of order k (degree k-1) is a B-spline with 2*k knot points
-    and only two values, each of multiplicity k.
-
-    The deBoor recursion algorithm defines the piecewise polynomial in terms
-    of the values of p and t:
-
-        P[i,0](u) = p[...,i] if t[i] <= u < t[i+1] else 0
-        P[i,j](u) = ((t[i+k-j]-u)*P[i-1,j-1](u) + (u-t[i])*P[i,j-1])
-                    / (t[i+k-j] - t[i])
-
-    and the function value is P[i,k-1](u) when t[i] <= u < t[i+1].
-
-    The derivative is a B-spline of order k-1 (degree k-2) with
-
-        pdot[...,i] = (k-1) * (p[...,i] - p[...,i-1]) / (t[i+k-1] - t[i])
-
-    where p[...,i-1] = 0 for i=0 and p[...,i] = 0 for i=len(t)-k.  Note
-    that p.shape[-1]=len(t)-k, but that pdot.shape[-1]=len(t)-k+1, because
-    pdot has order k-1.
-    """
-
-########################################################################
 # alternative PwPoly constructors are implemented as functions
 
-def pwfit(x, y, xk, n=1, sigy=1.0, per=False):
-    """Construct a PwPoly that is the least squares best fit to given data.
-
-    Parameters
-    ----------
-    x : array_like
-    y : array_like
-        The given (x,y) data points to be fit.
-        The y data may have additional leading dimensions compared to x, in
-        order to fit a curve in a multi-dimensional space with x as a
-        parameter.
-    xk : 1D array_like
-        The knot points for the PwPoly fit.
-    n : int, optional
-        The degree of the PwPoly.  Defaults to 1, a piecewise linear fit.
-    sigy : array_like, optional
-        Standard deviations of the points y, must be conformable with y.
-        Points will be weighted as 1/sigy**2.  Without sigy (by default)
-        all y values are weighted equally.
-        Note that the "weight" argument to scipy.interpolate.splrep and
-        splprep is 1/sigy -- there, "weight" means the square root of the
-        corresponding term in the chi-square sum.
-    per : bool, optional
-
-    Returns
-    -------
-    p : PwPoly
-        The PwPoly with knots xk and degree n that best fits the given(x,y).
-        With stats set, also returns:
-
-    See Also
-    --------
-    pline : general piecewise linear interpolator
-    spline : construct spline
-    bspline : construct B-spline
-    pwfit : piecewise polynomial fit to scattered data
-    PwPoly : piecewise polynomial class
-    """
-
 def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
-    """Construct a PwPoly as a spline fit through given points (x,y).
+    """Construct a PwPoly as a spline through given points (x,y).
 
     A spline is a piecewise polynomial of degree n (default 3) passing
     through all of the given points with continuous derivatives up to
@@ -885,7 +774,7 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     nshape = prod(shape)
     nm1 = n - 1
     if per and (lo or hi or (extrap is not None)):
-        raise TypeError("periodic boundary conditions preclude lo or hi")
+        raise TypeError("periodic bcs preclude lo, hi, or extrap")
     if extrap is None:
         extrap = (nm1, nm1)
     elif not isinstance(extrap, tuple):
@@ -1048,7 +937,7 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     return PerPwPoly.new(x, c) if per else PwPoly.new(x, c)
 
 def pline(x, y, extrap=None, per=False):
-    """Return a piecewise linear fit through given points (x,y).
+    """Return a piecewise linear function through given points (x,y).
 
     Convenience shorthand for spline(x, y, n=1), intended as a more
     general version of the interp function with a slightly different
@@ -1069,8 +958,198 @@ def pline(x, y, extrap=None, per=False):
 # so that simply importing PwPoly (or having an instance) gives access.
 # Arguably, such constructors should be class methods, but this seems
 # straightforward enough.
-PwPoly.fit = staticmethod(pwfit)
+PwPoly.pline = staticmethod(pline)
 PwPoly.spline = staticmethod(spline)
+
+class PLFitSolver(object):
+    """Hook object for solving pline tridiagonal systems.
+
+    You can derive from this class to implement more complicated constraints
+    than the optional lo and hi arguments of this base class.
+    """
+    def __init__(self, adiag, asup, shape, lo=(), hi=(), per=False, **kwargs):
+        dtype = adiag.dtype
+        self.per = per
+        self.ylo, self.yhi = None, None
+        if lo:
+            self.ylo = asfarray(lo[0]+zeros(shape)).astype(dtype).ravel()
+            adiag = adiag[1:]
+            self.blo = asup[0] * ylo
+            asup = asup[1:]
+        if hi:
+            self.yhi = asfarray(hi[0]+zeros(shape)).astype(dtype).ravel()
+            adiag = adiag[:-1]
+            self.bhi = asup[-2] * yhi  # asup[-1] is 0 padding
+            asup = asup[:-1]      # new asup[-1] will be ignored
+        self.a = array([adiag, asup])  # symmetric tridiagonal, lower form
+    def solve(self, b, i):
+        y = b.copy()
+        lo = 0 if self.ylo is None else 1
+        hi = None if self.yhi is None else -1
+        if lo:
+            b = b[lo:]
+            b[0] -= self.blo  # note that b is a temporary in caller
+            y[0] = ylo[i]
+        if hi:
+            b = b[:hi]
+            b[-1] -= self.bhi
+            y[-1] = yhi[i]
+        y[lo:hi] = solveh_banded(self.a, b, lower=True, check_finite=False,
+                                 overwrite_b=True)
+        return y
+
+def plfit(xk, x, y, sigy=None, lo=(), hi=(), per=False, extrap=None,
+          Solver=PLFitSolver, **kwargs):
+    """Return best fit linear PwPoly with knots xk to given points (x,y).
+
+    Gives the same fit as splfit(xk, x, y, n=1, nc=0), that is, the
+    best fit piecewise polynomial through (x,y) with the given knots.
+    See splfit documentation for detailed description of the common
+    parameters.  If you need the cost of continuity constraints, use
+    splfit instead.
+    """
+    # Implement using order 2 B-spline algorithm, a completely different
+    # strategy from the splfit algorithm.
+    xkorig, xk, x, y, lo, hi, extrap = _splfit_setup(xk,x,y, lo,hi, per,extrap)
+    if len(lo) > 1 or len(hi) > 1:
+        raise ValueError("BCs on derivatives in lo, hi not supported in pline")
+    x, y, sigy, ix, dxk, yshape = _splfit_args(xk, x, y, sigy)
+    nun = xk.size       # number of unknowns
+    one = array(1., dtype=y.dtype)
+    w = one / (sigy * sigy)  # chi2 weights
+    rdxk = one / dxk
+    p = x * rdxk
+    q = one - p
+    wp, wq = w*p
+    adiag = bincount(ix, wq*q, nun) +  bincount(1+ix, wp*p, nun)
+    asup = bincount(ix, wp*q, nun)
+    solver = Solver(adiag, asup, yshape, lo, hi, per, **kwargs)
+    yk = []
+    for i, yy in enumerate(y):
+        b = bincount(ix, wq*yy, nun) + bincount(1+ix, wp*yy, nun)
+        yk.append(solver.solve(b, i))
+    yk = array(yk).reshape(yshape+(nun,))  # put back actual shape of yk
+    return pline(xk, yk, per=per)
+
+def splfit(xk, x, y, sigy=None, n=3, nc=None,
+           lo=(), hi=(), per=False, extrap=None, cost=None):
+    """Return the best fit PwPoly with knots xk to given points (x,y).
+
+    Parameters
+    ----------
+    xk : 1D array_like
+        Knot points of the PwPoly, sparse enough that there are some
+        x values "near" each interval of xk.  The xk must be monotonic;
+        as a convenience splfit() will reverse xk if it is decreasing.
+    x : array_like
+    y : array_like
+        cloud of points to fit.  If f is the returned PwPoly,
+            chi2 = sum(((f(x) - y)/sigy)**2)
+        will be minimum for the given PwPoly knot points xk, degree n,
+        and boundary constraints.  The y array must have the same or
+        conformable trailing dimensions as x.  However, y may have
+        additional leading dimensions to produce a multi-dimensional
+        PwPoly curve.  In this case, the chi2 sum extends over all
+        the leading dimensions for each point.  The order of the (x,y)
+        points is irrelevant; indeed x need not be a 1D array.
+    sigy : array_like, optional
+        Standard deviations of y, must be conformable to y.
+    n : int, optional
+        The degree of the PwPoly, defaulting to 3 (piecewise cubic).
+    nc : int, optional
+        The degree to which the result PwPoly is continuous, defaulting
+        to n-1 (that is, the PwPoly is a spline of degree n).  Note that
+        a smaller value of nc requires more (x,y) points per xk interval.
+    lo : tuple of array_like, optional
+    hi : tuple of array_like, optional
+        Boundary conditions at the endpoints xk[0] and xk[-1].  Each tuple
+        represents the values of (y, dydx, d2ydx2, d3ydx3, ...) at xk[0] for
+        lo or xk[-1] for hi.  Use None for a derivative to be not specified.
+        See the docstring for spline for details; however, note that
+        the lo and hi tuples for splfit() begin with the function value
+        (zero-th derivative), while the lo and hi tuples for spline()
+        begin with the first derivative.
+    per : bool
+        True to make all derivatives match at first and last points of xk.
+        This produces a PerPwPoly function, which maps any inputs
+        outside the first and last points of xk into that interval.
+    extrap : int or (int,int)
+        Degree to maintain continuity beyond endpoints, can be set separately
+        for before first and after last interval.
+    cost : bool, optional
+        Set to return cost array continuity of various degrees.
+
+    Returns
+    -------
+    fit : PwPoly
+        The best fit to the given (x,y) with the given knots xk.
+    cost : ndarray, only present with cost=1 keyword parameter
+        The Lagrange multipliers used to enforce the chi2 minimization
+        constraints associated with the continuous derivatives.  The
+        dimensions have any leading dimensions of y, and two trailing
+        dimensions nc+1 = number of continuity constraints and
+        len(xk)-2 = the number of interior knot points.
+    """
+    # There is a faster and cleaner B-spline algorithm.  The direct matrix
+    # solve here avoids a messy conversion from B-spline control points
+    # to PwPoly coefficients, and produces the Lagrange multipliers as
+    # an interesting side effect.  Note that a direct deBoor B-spline
+    # evaluator is far slower than PwPoly, especially in interpreted code,
+    # although PwPoly needs several times as much stored descriptive data
+    # for the case of maximal continuity.  These advantages disappear
+    # for the linear case; see pline for the linear B-spline algorithm.
+    xkorig, xk, x, y, lo, hi, extrap = _splfit_setup(xk,x,y, lo,hi, per,extrap)
+    x, y, sigy, ix, dxk, yshape = _splfit_args(xk, x, y, sigy)
+
+def _splfit_setup(xk, x, y, lo=(), hi=(), per=None, extrap=None):
+    if per and (lo or hi or (extrap is not None)):
+        raise TypeError("periodic bcs preclude lo, hi, or extrap")
+    xk, x, y = map(asfarray, (xk, x, y))
+    if xk.ndim != 1 or xk.size < 2:
+        raise TypeError("xk must be 1D array with at least two points")
+    if xk[0] > xk[-1]:   # handle reversed xk as convenience
+        xk = xk[::-1]
+        lo, hi = hi, lo
+        try:
+            extrap = extrap[::-1]
+        except TypeError, IndexError:
+            pass
+    # handle non-tuple endpoint values as a convenience
+    if not isinstance(lo, tuple): lo = (lo,)
+    if not isinstance(hi, tuple): hi = (hi,)
+    xkorig = xk.copy()
+    xmin, xmax = x.min(), x.max()
+    if xmin < xk[0]:
+        if lo:
+            raise ValueError("lo illegal if any x beyond xk[0]")
+        cats = ([xmin], xkorig)
+    else:
+        cats = (xkorig,)
+    if xmax > xk[-1]:
+        if hi:
+            raise ValueError("hi illegal if any x beyond xk[-1]")
+        cats += ([xmax],)
+    xk = concatenate(cats) if (len(cats) > 1) else xkorig
+    return xkorig, xk, x, y, lo, hi, extrap
+
+def _splfit_args(xk, x, y, sigy=None):
+    ndimx = x.ndim
+    ndimy = y.ndim - ndimx
+    y = y + zeros_like(x)
+    x = x + zeros(y.shape[ndimy:], dtype=y.dtype)
+    yshape = y.shape[0:ndimy] if ndimy else (1,)
+    if sigy is None:
+        sigy = ones_like(y)
+    else:
+        sigy = asfarray(sigy) + zeros_like(y)
+    x = x.ravel()
+    shape = yshape + (x.size,)
+    y = y.reshape(shape)
+    sigy = sigy.reshape(shape)
+    # y, sigy always 2D, x always 1D
+    # ix is the interval index, 0 for first interval, xk.size-2 for last
+    ix = minimum(maximum(xk.searchsorted(x), 1), xk.size-1) - 1
+    return x, y, sigy, ix, xk[1:]-xk[:-1], yshape
 
 ########################################################################
 # workhorse functions
@@ -1161,117 +1240,6 @@ def _polysetup(c, x):
     except IndexError:
         p = c[-1] + zeros_like(x)
     return c, x, p
-
-def deboor(order, knots, pts, t):
-    """evaluate Bspline by deBoor algorithm"""
-    deg, knots, pts, t = order-1, asarray(knots), asarray(pts), asarray(t)
-    tshape, t = t.shape, t.ravel()
-    pshape = pts.shape[:-1]
-    pts = pts.reshape(prod(pshape), pts.shape[-1])
-    # find it with t in [it,it+1], but force it>=deg and it<=K-deg
-    it = knots[order:-order-1].searchsorted(t) + deg  # t in [it,it+1]
-    # result depends on p[it-deg], p[it-deg+1], ..., p[it]
-    it = it - arange(order).reshape(order, 1)
-    p = pts[:, it]
-    t = t.reshape(1, 1, len(t))
-    for j in range(1,order):
-        # it, a, p all 3D arrays:
-        # (leading axes of pts, consecutive intervals, axes of t)
-        # Each deBoor iteration involves a smaller number of consecutive
-        # intervals, beginning with deg and ending with 1.
-        it = it[:, :-1 ,:]
-        a = knots[it]
-        a = (t - a) / (knots[it+order-j] - a)
-        q = p[:, 1:, :]
-        p = q + a*(p[:, :-1, :] - q) # build polynomial in t
-    return p.reshape(pshape+tshape)
-
-def _bspl2coef(p):
-    p = asfarray(p)
-    k = p.shape[0]
-    p = p[newaxis].repeat(k,axis=0);  p[1:] = 0
-    p1, p0 = p[:-1,1:], p[:-1,:-1]
-    for i in range(k-1):
-        p[1:,:-1] += p1 - p0
-    return p[:,0].copy()
-
-def _coef2bspl(c):
-    c = asfarray(c)
-    k = c.shape[0]
-    c = c / bico(k,dtype=c.dtype).reshape((k,)+(1,)*(c.ndim-1))
-    c = c[newaxis].repeat(k,axis=0);  c[1:] = 0
-    c0 = c[0]
-    for c1 in c[1:]:
-        c1[:-1] = c0[1:] + c0[:-1]
-        c0 = c1
-    return c[:,0].copy()
-
-def _bico(k, dtype=float):
-    b = zeros(k, dtype=dtype);  b[0] = 1
-    for i in range(k-1):
-        b[1:] = b[1:] + b[:-1]  # note that += fails!
-    return b
-
-def bspline_basis(t, order, upto=False):
-    """compute B-spline basis functions for given knot vector
-
-    B[i,1] = 1 if t[i]<=t<t[i+1] else 0
-    B[i,k+1] = B[i,k]*(t-t[i])/(t[i+k]-t[i])
-               + B[i+1,k]*(t[i+k+1]-t)/(t[i+k+1]-t[i+1])
-             = 0 for t<=t[i] or t>=t[i+k]
-
-    For each of k intervals (i,i+1), ..., (j,j+1), ... (i+k-1,i+k),
-    return k coefficients of polynomial in t-t[j].
-
-    Parameters
-    ----------
-    t : 1D array_like, non-decreasing
-        the knot vector, with repeated values to represent multiplicity
-    order : int
-        the order of the basis
-    upto : bool, optional
-        if set, return list of all bases <= order
-
-    Returns
-    -------
-    b : 3D array_like
-        shape (order,order,len(t)-order) polynomial coefficients
-
-    If t[j] <= t < t[j+1], where i <= j < i+k, then b[:,j-i,i] are the
-    polynomial coefficients of t-t[j] for B[i,k](t) in interval j.
-    """
-    t = asfarray(t).ravel()
-    dt = t[1:] - t[:-1]
-    if dt.min() < 0 or dt.size < order:
-        raise TypeError("t must be non-decreasing and len(t) > order")
-    upto = [] if upto else None
-    tshift = zeros((order+1,) + t.shape, dtype=t.type)
-    tshift[0] = t
-    tmp = t
-    for ts in tshift[1:]:
-        ts[:-1] = tmp[1:]
-        tmp = ts
-    tbeg, tend = tshift[:-1,:-1], tshift[1:,:-1]  # associated with Bik
-    dtik = tend - tbeg
-    rdtik = where(dtik, 1., 0.)/where(dtik, dtik, 1.)
-    dtik = dt.reshape(1, dt.size).repeat(order, axis=0)
-    for k in range(1, order):
-        dtik[k,:-k] = t[k+1:] - t[:-k-1]
-    b = zeros((order,)+dtk.shape, dtype=dt.dtype)
-    b[0,0] = 1.
-    if upto is not None:
-        upto.append(b[0:1,0:1,:].copy())
-    # b(k+1)[:,j-i,i] = (t-t[i])*bn(k)[:,j-i,i] + (t[i+1+k]-t)*bn[:,j-i-1,i+1]
-    # where first term only up to i+k, second only beyond i+1, and
-    # bn[:,j-i,i] = b(k)[:,j-i,i] / (t[i+k] - t[i])  for all 0 <= j-i < k
-    #    t-t[i] = t-t[j] + t[j]-t[i]             i <= j < i+k
-    #    t[i+1+k]-t = t[i+1+k]-t[j] - (t-t[j])   i+1 <= j < i+1+k
-    #        t[i+1+k]-t[j] = t[i+1+k]-t[i+1] - (t[j]-t[i+1])
-    for k in range(2,order+1):  # k is current order
-        dtk = dtik[k-1]
-        rdtk = where(dtk, 1., 0.)/where(dtk, dtk, 1.)
-        b *= rdtk
-        b1 = b[:,:-1,1:].copy() # = B[i+1,k] / (t[i+k+1]-t[i+1])
 
 ########################################################################
 # useful special cases
