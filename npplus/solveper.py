@@ -48,31 +48,31 @@ def solve_periodic(l_and_u, ab, b, overwrite_ab=False, overwrite_b=False,
     # last l variables, first l equations are the l corner (lower left of a)
 
     # construct l+u square matrix holding the corner matrix elements
-    # A50   0    0     begin with the u uppers, last u equation corner
-    #  0   A04  A05    then the l lowers, first l equation corner
+    #  0   A04  A05    begin with the l lowers, first l equation corner
     #  0    0   A15
-    corn = zeros((lpu, lpu), dtype=dtype)
+    # A50   0    0     then the u uppers, last u equation corner
+    corn = zeros((lpu, lpu), dtype)
     if u:
-        corn[:u,:u] = _diag_to_norm((u-1,0), ab[:u,:u])
+        corn[-u:,:u] = _diag_to_norm((u-1,0), ab[:u,:u])
     if l:
-        corn[-l:,-l:] = _diag_to_norm((0,l-1), ab[-l:,-l:])
+        corn[:l,-l:] = _diag_to_norm((0,l-1), ab[-l:,-l:])
 
     # solve equation without corner marix elements (ignoring them)
     xx = solve_banded(l_and_u, ab, b, overwrite_ab=False,
                       overwrite_b=overwrite_b, check_finite=check_finite)
 
     # solve equation l+u times with only first l and last u equations non-0
-    bb = zeros(n, lpu, dtype=dtype)
-    if u: bb[-u:, :u] = eye(u, dtype=dtype)
-    bb[:l, u:] = eye(l, dtype=dtype)
+    bb = zeros((n, lpu), dtype)
+    if u: bb[-u:, -u:] = eye(u, dtype=dtype)
+    bb[:l, :l] = eye(l, dtype=dtype)
     xy = solve_banded(l_and_u, ab, bb, overwrite_ab=overwrite_ab,
                       overwrite_b=overwrite_b, check_finite=check_finite)
 
     # if ad is the diagonal part of a (excluding corners)
     # ad.dot(xx) = b   and   ad.dot(xy) = bb (0 except 1 in a single position)
     mask = roll(arange(n) < lpu, -l)  # first u, last l elements of x
-    acx = corn.T.dot(xx[mask, ...]) # (last u & 1st l eqns, trailing axes of b)
-    acy = corn.T.dot(xy[mask, :]) # (last u & 1st l eqns, 2nd axis of bb)
+    acx = corn.dot(xx[mask, ...]) # (last u & 1st l eqns, trailing axes of b)
+    acy = corn.dot(xy[mask, :]) # (last u & 1st l eqns, 2nd axis of bb)
     # seek x such that a.dot(x) = b
     # seek p such that x = xx - xy.dot(p)
     # a.dot(x) = ad.dot(xx) + acx - p - acy.dot(p) = b
@@ -125,16 +125,17 @@ def solveh_periodic(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
     # last l variables, first l equations are the l corner (lower left of a)
 
     # construct l+u square matrix holding the corner matrix elements
-    # A50   0    0     begin with the u uppers, last u equation corner
-    #  0   A04  A05    then the l lowers, first l equation corner
-    #  0    0   A15
-    corn = zeros((lpu, lpu), dtype=dtype)
+    #  0    0   A04  A05    begin with the l lowers, first l equation corner
+    #  0    0    0   A15
+    # A40   0    0    0     then the u uppers, last u equation corner
+    # A50  A15   0    0
+    corn = zeros((lpu, lpu), dtype)
     if lower:
-        corn[-u:,-u:] = cc = _diag_to_norm((0,u-1), ab[-u:,-u:])
-        corn[:u, :u] = cc.T
+        corn[:u,-u:] = cc = _diag_to_norm((0,u-1), ab[-u:,-u:])
+        corn[-u:,:u] = cc.T
     else:
-        corn[:u,:u] = _diag_to_norm((u-1,0), ab[:u,:u])
-        corn[:u, :u] = cc.T
+        corn[-u:,:u] = cc = _diag_to_norm((u-1,0), ab[:u,:u])
+        corn[:u,-u:] = cc.T
 
     # solve equation without corner marix elements (ignoring them)
     xx = solveh_banded(ab, b, overwrite_ab=False, lower=lower,
@@ -143,17 +144,17 @@ def solveh_periodic(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
         return xx
 
     # solve equation l+u times with only first l and last u equations non-0
-    bb, xy = zeros(n, lpu, dtype=dtype), eye(u, dtype=dtype)
-    bb[-u:, :u] = xy
-    bb[:u, u:] = xy
+    bb, xy = zeros((n, lpu), dtype), eye(u, dtype=dtype)
+    bb[-u:, -u:] = xy
+    bb[:u, :u] = xy
     xy = solveh_banded(ab, bb, overwrite_ab=overwrite_ab, lower=lower,
                        overwrite_b=overwrite_b, check_finite=check_finite)
 
     # if ad is the diagonal part of a (excluding corners)
     # ad.dot(xx) = b   and   ad.dot(xy) = bb (0 except 1 in a single position)
-    mask = roll(arange(n) < lpu, -l)  # first u, last l elements of x
-    acx = corn.T.dot(xx[mask, ...]) # (last u & 1st l eqns, trailing axes of b)
-    acy = corn.T.dot(xy[mask, :]) # (last u & 1st l eqns, 2nd axis of bb)
+    mask = roll(arange(n) < lpu, -u)  # first u, last u elements of x
+    acx = corn.dot(xx[mask, ...]) # (last u & 1st u eqns, trailing axes of b)
+    acy = corn.dot(xy[mask, :]) # (last u & 1st u eqns, 2nd axis of bb)
     # seek x such that a.dot(x) = b
     # seek p such that x = xx - xy.dot(p)
     # a.dot(x) = ad.dot(xx) + acx - p - acy.dot(p) = b
