@@ -1112,7 +1112,7 @@ def _splfit_setup(xk, x, y, lo=(), hi=(), per=None, extrap=None):
         lo, hi = hi, lo
         try:
             extrap = extrap[::-1]
-        except TypeError, IndexError:
+        except (TypeError, IndexError):
             pass
     # handle non-tuple endpoint values as a convenience
     if not isinstance(lo, tuple): lo = (lo,)
