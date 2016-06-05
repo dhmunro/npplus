@@ -89,8 +89,14 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
     s, start = sign(start), absolute(start)
     stop = s * stop
     if (stop <= 0.).any():
-        raise TypeError("start and stop must be non-zero and same sign")
-    return s * exp(span(log(start), log(stop), num, dtype=dtype))
+        raise ValueError("start and stop must be non-zero and same sign")
+    if axis:
+        shape = s.shape
+        if axis < 0:
+            axis = axis + len(shape)+1
+        s = s.reshape(shape[:axis] + (1,) + shape[axis:])
+    s = s * exp(span(log(start), log(stop), num, axis))
+    return s.astype(dtype) if dtype else s
 
 def cat_(*args, **kwargs):
     """concatenate arrays on one axis
@@ -130,7 +136,7 @@ def cat_(*args, **kwargs):
         alist.append(a)
     if ndim < 1: ndim = 1
     if axis<-ndim or axis>=ndim:
-        ValueError("axis keyword is out of bounds")
+        raise ValueError("axis keyword is out of bounds")
     shape = array([(1,)*(ndim-a.ndim)+a.shape for a in alist])
     lens = shape[:,axis].copy()
     shape[:,axis] = lens.sum()
@@ -247,9 +253,11 @@ def atan(a, b=None, out=None, branch=None):
     a = arctan2(a, b, out=out)
     if branch is None:
         return a
-    tp = 2.*pi
-    # return tp - (branch-a)%tp + branch
-    return (a-branch)%tp + branch
+    # return 2pi - (branch-a)%2pi + branch
+    a = (a-branch)%(2.*pi) + branch
+    if out is not None:
+        out[...] = a  # fails if out is scalar...
+    return a
 
 # Following three are finite difference companions to np.diff
 
@@ -279,13 +287,13 @@ def cum(a, axis=-1):
     Examples
     --------
     >>> x = array([[1,1,1,1], [2,2,2,2]])
-    >>> axismeth.cum(x)
+    >>> axismeth.cum(x,axis=None)
     array([ 0,  1,  2,  3,  4,  6,  8, 10, 12])
     >>> axismeth.cum(x,axis=0)
     array([[0, 0, 0, 0],
            [1, 1, 1, 1],
            [3, 3, 3, 3]])
-    >>> axismeth.cum(x,axis=1)
+    >>> axismeth.cum(x)
     array([[0, 1, 2, 3, 4],
            [0, 2, 4, 6, 8]])
     """
