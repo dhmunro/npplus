@@ -7,7 +7,9 @@ from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
 from numpy import prod, cumprod, isclose, allclose, transpose, ones_like
 from numpy import bincount
 from numpy.linalg import inv, eigvals
-from scipy.linalg import solve_banded, solve
+from scipy.linalg import solve_banded, solve, solveh_banded
+
+from .solveper import solves_periodic
 
 class PwPoly(object):
     """Piecewise polynomial function.
@@ -342,11 +344,11 @@ class PwPoly(object):
             dx = concatenate((dx, dx[-1:]))
         else:
             dx = array([1., 1.])
-        dx = dxsave
+        dxsave = dx
         dxn = dx + zeros((n+1,)+dx.shape)
         dxn[0] = 1
         dxn = dxn.cumprod(axis=0)  # [1, dx, dx**2, ..., dx**n]
-        c *= dxn;  cup *= dxn  # scale each interval to (0,1)
+        c *= dxn;  cup *= dxn[:,:-1]  # scale each interval to (0,1)
         # Descartes rule of signs: must be at least one sign change if root>0
         maybe = ((c[1:] < 0) != (c[:-1] < 0)).sum(axis=0) > 0
         maybe[0] = True  # no dx>0 test for left semi-infinite interval
@@ -369,12 +371,12 @@ class PwPoly(object):
                 mask &= (xi <= 1.)
             if any(mask):
                 xi = xi[mask]
-                linear &= mask
+                linear[linear] &= mask
                 x.append(xi*dx[linear] + xk0[linear])
         linear = (deg > 1)  # actually means non-linear here
         check_first = maybe[0] and linear[0]
         check_last = maybe[-1] and linear[-1]
-        # for non-linear intervals, fall back to generaic root finder
+        # for non-linear intervals, fall back to generic root finder
         # this loop over intervals is slow but unavoidable
         c, dx, xk0 = c[:,linear], dx[linear], xk0[linear]
         nold, imax = -1, len(xk)
@@ -773,6 +775,8 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     shape = shape[:-1]
     nshape = prod(shape)
     nm1 = n - 1
+    if not isinstance(lo, tuple):  lo = (lo,)
+    if not isinstance(hi, tuple):  hi = (hi,)
     if per and (lo or hi or (extrap is not None)):
         raise TypeError("periodic bcs preclude lo, hi, or extrap")
     if extrap is None:
@@ -783,10 +787,11 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
         x, y = x[::-1].copy(), y[...,::-1].copy()
         lo, hi = hi, lo
         extrap = extrap[::-1]
-    if not isinstance(lo, tuple):  lo = (lo,)
-    if not isinstance(hi, tuple):  hi = (hi,)
     if len(lo)>nm1 or len(hi)>nm1:
         raise TypeError("cannot specify more than n-1st derivative in bc")
+    if per:
+        y = y.copy()
+        y[...,-1] = y[...,0]  # ignore given y[-1], assume same as y[0]
     if n < 2:
         p = PerPwPoly(x, y) if per else PwPoly(x, y)
         xk, c = p.xk, p.c
@@ -818,9 +823,6 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
             i -= 1
         lo = tuple(lo)
         hi = tuple(hi)
-    if per:
-        y = y.copy()
-        y[...,-1] = y[...,0]  # ignore given y[-1], assume same as y[0]
     one = ones((), dtype=dtype)
     mhi = polyddx(eye(1+n, dtype=dtype), one)[:-1,1:]
     # [[  1.,   1.,   1.,   1.,   1.],
@@ -895,7 +897,7 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
         rhs = rhs.reshape(nshape, nun).T.copy()
     rhs = solve_banded(nlnu, diags, rhs, overwrite_ab=(not per),
                        overwrite_b=True, check_finite=False)
-    if per:
+    if per:  # FIXME: use solve_periodic instead
         # So far, we have natural spline solution with highest derivatives
         # at first and last knots equal zero.  Now solve each BC=1 with all
         # others =0 to derive n-1 more conditions for continuity of the
@@ -961,45 +963,34 @@ def pline(x, y, extrap=None, per=False):
 PwPoly.pline = staticmethod(pline)
 PwPoly.spline = staticmethod(spline)
 
-class PLFitSolver(object):
-    """Hook object for solving pline tridiagonal systems.
-
-    You can derive from this class to implement more complicated constraints
-    than the optional lo and hi arguments of this base class.
-    """
-    def __init__(self, adiag, asup, shape, lo=(), hi=(), per=False, **kwargs):
-        dtype = adiag.dtype
-        self.per = per
-        self.ylo, self.yhi = None, None
-        if lo:
-            self.ylo = asfarray(lo[0]+zeros(shape)).astype(dtype).ravel()
-            adiag = adiag[1:]
-            self.blo = asup[0] * ylo
-            asup = asup[1:]
-        if hi:
-            self.yhi = asfarray(hi[0]+zeros(shape)).astype(dtype).ravel()
-            adiag = adiag[:-1]
-            self.bhi = asup[-2] * yhi  # asup[-1] is 0 padding
-            asup = asup[:-1]      # new asup[-1] will be ignored
-        self.a = array([adiag, asup])  # symmetric tridiagonal, lower form
-    def solve(self, b, i):
-        y = b.copy()
-        lo = 0 if self.ylo is None else 1
-        hi = None if self.yhi is None else -1
-        if lo:
-            b = b[lo:]
-            b[0] -= self.blo  # note that b is a temporary in caller
-            y[0] = ylo[i]
-        if hi:
-            b = b[:hi]
-            b[-1] -= self.bhi
-            y[-1] = yhi[i]
-        y[lo:hi] = solveh_banded(self.a, b, lower=True, check_finite=False,
-                                 overwrite_b=True)
-        return y
+def _plfitter(adiag, asup, b, lo=None, hi=None, per=False, **kwargs):
+    y = b.copy()
+    if per:
+        a = array([adiag[::-1], asup[::-1]])  # symmetric tridiag, lower form
+        a[0,0] += adiag[-1]
+        b[0] += b[-1]
+        y[:-1] = solves_periodic(a, b[:-1], lower=True,
+                                 check_finite=False, overwrite_b=True)
+        y[-1] = y[0]
+    else:
+        a = array([adiag, asup])  # symmetric tridiag, lower form
+        if lo is not None:
+            y[0] = lo
+            b = b[0:]
+            b[0] -= lo * asup[0]
+            lo = 1
+        if hi is not None:
+            y[0] = hi
+            b = b[:-1]
+            b[-1] -= hi * asup[-2]  # asup[-1] is zero padding
+            hi = -1
+        # note that solveh_banded only handles positive definite a
+        y[lo:hi] = solveh_banded(a, b, lower=True,
+                                 check_finite=False, overwrite_b=True)
+    return y
 
 def plfit(xk, x, y, sigy=None, lo=(), hi=(), per=False, extrap=None,
-          Solver=PLFitSolver, **kwargs):
+          solver=_plfitter, **kwargs):
     """Return best fit linear PwPoly with knots xk to given points (x,y).
 
     Gives the same fit as splfit(xk, x, y, n=1, nc=0), that is, the
@@ -1013,23 +1004,28 @@ def plfit(xk, x, y, sigy=None, lo=(), hi=(), per=False, extrap=None,
     xkorig, xk, x, y, lo, hi, extrap = _splfit_setup(xk,x,y, lo,hi, per,extrap)
     if len(lo) > 1 or len(hi) > 1:
         raise ValueError("BCs on derivatives in lo, hi not supported in pline")
-    x, y, sigy, ix, dxk, yshape = _splfit_args(xk, x, y, sigy)
+    x, y, sigy, ix, dxk, yshape, lo, hi = _splfit_args(xk, x, y, sigy, lo, hi)
+    lo = lo[0] if lo else None
+    hi = hi[0] if hi else None
     nun = xk.size       # number of unknowns
     one = array(1., dtype=y.dtype)
     w = one / (sigy * sigy)  # chi2 weights
     rdxk = one / dxk
-    p = x * rdxk
+    p = (x - xk[ix]) * rdxk[ix]
     q = one - p
-    wp, wq = w*p
-    adiag = bincount(ix, wq*q, nun) +  bincount(1+ix, wp*p, nun)
-    asup = bincount(ix, wp*q, nun)
-    solver = Solver(adiag, asup, yshape, lo, hi, per, **kwargs)
     yk = []
+    ll, hh = None, None
     for i, yy in enumerate(y):
+        wp = w[i]
+        wp, wq = wp*p, wp*q
+        adiag = bincount(ix, wq*q, nun) +  bincount(1+ix, wp*p, nun)
+        asup = bincount(ix, wp*q, nun)
         b = bincount(ix, wq*yy, nun) + bincount(1+ix, wp*yy, nun)
-        yk.append(solver.solve(b, i))
+        if lo is not None: ll = lo[i]
+        if hi is not None: hh = hi[i]
+        yk.append(solver(adiag, asup, b, lo=ll, hi=hh, per=per, **kwargs))
     yk = array(yk).reshape(yshape+(nun,))  # put back actual shape of yk
-    return pline(xk, yk, per=per)
+    return pline(xk, yk, extrap=extrap, per=per)
 
 def splfit(xk, x, y, sigy=None, n=3, nc=None,
            lo=(), hi=(), per=False, extrap=None, cost=None):
@@ -1102,7 +1098,10 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None,
     x, y, sigy, ix, dxk, yshape = _splfit_args(xk, x, y, sigy)
 
 def _splfit_setup(xk, x, y, lo=(), hi=(), per=None, extrap=None):
-    if per and (lo or hi or (extrap is not None)):
+    # handle non-tuple endpoint values as a convenience
+    if not isinstance(lo, tuple): lo = (lo,)
+    if not isinstance(hi, tuple): hi = (hi,)
+    if per and (lo!=() or hi!=() or (extrap is not None)):
         raise TypeError("periodic bcs preclude lo, hi, or extrap")
     xk, x, y = map(asfarray, (xk, x, y))
     if xk.ndim != 1 or xk.size < 2:
@@ -1114,42 +1113,51 @@ def _splfit_setup(xk, x, y, lo=(), hi=(), per=None, extrap=None):
             extrap = extrap[::-1]
         except (TypeError, IndexError):
             pass
-    # handle non-tuple endpoint values as a convenience
-    if not isinstance(lo, tuple): lo = (lo,)
-    if not isinstance(hi, tuple): hi = (hi,)
-    xkorig = xk.copy()
-    xmin, xmax = x.min(), x.max()
-    if xmin < xk[0]:
-        if lo:
-            raise ValueError("lo illegal if any x beyond xk[0]")
-        cats = ([xmin], xkorig)
+    if per:
+        x0 = xk[0]
+        x = (x - x0)%(xk[-1] - x0) + x0
     else:
-        cats = (xkorig,)
-    if xmax > xk[-1]:
-        if hi:
-            raise ValueError("hi illegal if any x beyond xk[-1]")
-        cats += ([xmax],)
-    xk = concatenate(cats) if (len(cats) > 1) else xkorig
+        xkorig = xk.copy()
+        xmin, xmax = x.min(), x.max()
+        if xmin < xk[0]:
+            if lo:
+                raise ValueError("lo illegal if any x beyond xk[0]")
+            cats = ([xmin], xkorig)
+        else:
+            cats = (xkorig,)
+        if xmax > xk[-1]:
+            if hi:
+                raise ValueError("hi illegal if any x beyond xk[-1]")
+            cats += ([xmax],)
+        xk = concatenate(cats) if (len(cats) > 1) else xkorig
     return xkorig, xk, x, y, lo, hi, extrap
 
-def _splfit_args(xk, x, y, sigy=None):
+def _splfit_args(xk, x, y, sigy=None, lo=(), hi=()):
     ndimx = x.ndim
     ndimy = y.ndim - ndimx
     y = y + zeros_like(x)
     x = x + zeros(y.shape[ndimy:], dtype=y.dtype)
-    yshape = y.shape[0:ndimy] if ndimy else (1,)
+    yshape = y.shape[0:ndimy]
     if sigy is None:
         sigy = ones_like(y)
     else:
         sigy = asfarray(sigy) + zeros_like(y)
     x = x.ravel()
-    shape = yshape + (x.size,)
+    shape = (yshape if ndimy else (1,)) + (x.size,)
     y = y.reshape(shape)
     sigy = sigy.reshape(shape)
     # y, sigy always 2D, x always 1D
     # ix is the interval index, 0 for first interval, xk.size-2 for last
     ix = minimum(maximum(xk.searchsorted(x), 1), xk.size-1) - 1
-    return x, y, sigy, ix, xk[1:]-xk[:-1], yshape
+    if lo or hi:
+        dtype = y.dtype
+        yzero = zeros(yshape, dtype=dtype)
+        olo, ohi, lo, hi = lo, hi, [], []
+        for bc in olo:
+            lo.append((asfarray(bc).astype(dtype) + yzero).ravel())
+        for bc in ohi:
+            hi.append((asfarray(bc).astype(dtype) + yzero).ravel())
+    return x, y, sigy, ix, xk[1:]-xk[:-1], yshape, lo, hi
 
 ########################################################################
 # workhorse functions
