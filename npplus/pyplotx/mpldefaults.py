@@ -1,12 +1,22 @@
-# Set nicer default matplotlib style:
-# 1. Ensure matplotlib 2.0 colormaps present and viridis default.
-# 2. Simple CBQ interface for ColorBrewer color sets for linestyle cycling.
-#    Make default color cycle based on ColorBrewer Set1 (minus yellow).
-# 3. Fix savefig bounding box default to not clip title and labels.
-# 4. Make imshow not change viewport aspect by default.
-# 5. Change to a more yorick-like default plot style, with much larger
-#    axis labels, outward ticks, and a much subtler background.
-# 6. Define title function that works with outward ticks.
+# Copyright (c) 2016, David H. Munro
+# All rights reserved.
+# This is Open Source software, released under the BSD 2-clause license,
+# see http://opensource.org/licenses/BSD-2-Clause for details.
+"""mpldefaults module
+
+style_npp() function sets nicer default matplotlib style:
+1. Ensure matplotlib 2.0 colormaps present and viridis default.
+2. Simple CBQ interface for ColorBrewer color sets for linestyle cycling.
+   Make default color cycle based on ColorBrewer Set1 (minus yellow).
+3. Fix savefig bounding box default to not clip title and labels.
+4. Make imshow not change viewport aspect by default.
+5. Change to a more yorick-like default plot style, with much larger
+   axis labels, outward ticks, and a much subtler background.
+6. Define title function that works with outward ticks.
+
+Also exposes magma, inferno, plasma, and viridis colormaps, and CBQ object
+encapsulating the ColorBrewer qualitative palettes for use as color cycles.
+"""
 
 # The plot style could have been put in a matplotlib stylelib file
 # to take advantage of the mpl.style.use() interface, but that requires

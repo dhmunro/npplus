@@ -1,3 +1,8 @@
+# Copyright (c) 2016, David H. Munro
+# All rights reserved.
+# This is Open Source software, released under the BSD 2-clause license,
+# see http://opensource.org/licenses/BSD-2-Clause for details.
+
 """Interactive wrappers for interactive use of various pyplot APIs.
 
 Functions like matplotlib.pyplot.plot(x,y) are usually invoked as
