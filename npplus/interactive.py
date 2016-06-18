@@ -29,7 +29,7 @@ bytes = __builtins__['bytes']
 np.seterr(divide='raise', over='raise', invalid='raise')
 
 # give interpreted access to npplus modules
-from .yorlike import *
+from .basic import *
 from .pwpoly import *
 from .pcwise import *
 

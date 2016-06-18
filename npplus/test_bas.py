@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 
 import npplus as npp
-import npplus.yorlike as yl
+import npplus.basic as yl
 
 import __main__
 
