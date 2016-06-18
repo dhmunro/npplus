@@ -1,5 +1,39 @@
-# pwpoly.py
-# piecewise polynomial class PwPoly
+# Copyright (c) 2016, David H. Munro
+# All rights reserved.
+# This is Open Source software, released under the BSD 2-clause license,
+# see http://opensource.org/licenses/BSD-2-Clause for details.
+"""pwpoly module build and use piecewise polynomials
+
+Classes
+-------
+PwPoly(xk, yk, dydxk, ...):
+    piecewise polynomial with knots xk, values yk, derivatives dydxk, etc.
+PerPwPoly(xk, yk, dydxk, ...):
+    periodic piecewise polynomial
+
+Functions
+---------
+pwp = spline(xk, yk, n=3):
+    degree n piecewise polynomial with continuous n-1st derivative
+pwp = splfit(xk, x, y, sigy, n=3):
+    least squares best fit degree n spline to points (x,y) with knots xk
+pwp = pline(xk, yk):
+    polyline through (xk,yk)
+pwp = plfit(xk, x, y, sigy):
+    least squares best fit polyline to points (x,y) with knots xk
+
+The functions accept a per=1 keyword to produce periodic piecewise
+polynomials or an extrap keyword to specify the degree outside the
+domain of the knots xk.  Piecewise polynomials implement methods
+including:
+
+    +, -, and * operations (and / by scalars)
+    deriv and integ
+    pwp.roots(value) is all x such that pwp(x) == value
+
+Piecewise polynomials may represent 1D curves in higher dimensions
+simply by providing y (and dydx, etc.) values with leading dimensions.
+"""
 
 from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
 from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
@@ -26,16 +60,14 @@ class PwPoly(object):
 
     The PwPoly constructor produces a smooth fit that is local, in the
     sense that the function in the interval between consecutive knot
-    points depends only on the given function and derivative values at the
-    interval endpoints.  The spline function constructs and returns a PwPoly
-    which is smoother (for a given degree) by using the function values you
-    provide at all the knot points to determine the function within each
-    interval.  The bspline function constructs a PwPoly using a third kind
-    of input data, in which the points you specify do not lie on the curve
-    at all (unlike spline and the PwPoly constructor), but are merely
-    "control points" that guide the curve.  Finally, the pwfit function
-    constructs a PwPoly that is the statistical "best fit" to a cloud of
-    data points you provide.
+    points depends only on the given function and derivative values at
+    the interval endpoints.  The spline function constructs and
+    returns a PwPoly which is smoother (for a given degree) by using
+    the function values you provide at all the knot points to
+    determine the function within each interval.  The splfit function
+    constructs a PwPoly that is the statistical "best fit" to a cloud
+    of data points you provide.  The pline and plfit functions are
+    piecewise linear variants of spline and splfit.
 
     Parameters
     ----------
@@ -112,7 +144,7 @@ class PwPoly(object):
 
     See also
     --------
-    pwfit, spline, bspline
+    spline, splfit, pline, plfit
     """
     def __init__(self, xk=None, *args):
         if xk is None:
@@ -824,7 +856,7 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
         lo = tuple(lo)
         hi = tuple(hi)
     one = ones((), dtype=dtype)
-    mhi = polyddx(eye(1+n, dtype=dtype), one)[:-1,1:]
+    mhi = _bico(n, dtype=dtype)[:,1:]
     # [[  1.,   1.,   1.,   1.,   1.],
     #  [  1.,   2.,   3.,   4.,   5.],
     #  [  0.,   1.,   3.,   6.,  10.],
@@ -984,7 +1016,10 @@ def _plfitter(adiag, asup, b, lo=None, hi=None, per=False, **kwargs):
             b = b[:-1]
             b[-1] -= hi * asup[-2]  # asup[-1] is zero padding
             hi = -1
-        # note that solveh_banded only handles positive definite a
+        # Note that solveh_banded only handles positive definite a.
+        # Without lo or hi, a is positive definite, because y.T*a*y = chi2.
+        # With lo or hi constraints, chi2 minus first or last term must
+        # still be positive?  Not obvious...
         y[lo:hi] = solveh_banded(a, b, lower=True,
                                  check_finite=False, overwrite_b=True)
     return y
@@ -1015,6 +1050,9 @@ def plfit(xk, x, y, sigy=None, lo=(), hi=(), per=False, extrap=None,
     q = one - p
     yk = []
     ll, hh = None, None
+    # This needs to be a loop to allow for the possibility that sigy
+    # may be different for each component of y, which is the only
+    # dependence of the matrix to be solved on y component.
     for i, yy in enumerate(y):
         wp = w[i]
         wp, wq = wp*p, wp*q
@@ -1027,8 +1065,8 @@ def plfit(xk, x, y, sigy=None, lo=(), hi=(), per=False, extrap=None,
     yk = array(yk).reshape(yshape+(nun,))  # put back actual shape of yk
     return pline(xk, yk, extrap=extrap, per=per)
 
-def splfit(xk, x, y, sigy=None, n=3, nc=None,
-           lo=(), hi=(), per=False, extrap=None, cost=None):
+def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
+           extrap=None, cost=None):
     """Return the best fit PwPoly with knots xk to given points (x,y).
 
     Parameters
@@ -1086,16 +1124,87 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None,
         dimensions nc+1 = number of continuity constraints and
         len(xk)-2 = the number of interior knot points.
     """
-    # There is a faster and cleaner B-spline algorithm.  The direct matrix
-    # solve here avoids a messy conversion from B-spline control points
-    # to PwPoly coefficients, and produces the Lagrange multipliers as
-    # an interesting side effect.  Note that a direct deBoor B-spline
-    # evaluator is far slower than PwPoly, especially in interpreted code,
-    # although PwPoly needs several times as much stored descriptive data
-    # for the case of maximal continuity.  These advantages disappear
-    # for the linear case; see pline for the linear B-spline algorithm.
+    # There is a degree-n B-spline algorithm analogous to the degree-1
+    # algorithm used in plfit.  The direct matrix solve here is far
+    # less messy, though more equations for the matrix solve.  The
+    # additional unknowns are the Lagrange multipliers, which
+    # represent the cost of the continuity constraints.  Note that a
+    # direct deBoor B-spline evaluator is far slower than PwPoly,
+    # especially in interpreted code, although PwPoly needs several
+    # times as much stored descriptive data for the case of maximal
+    # continuity.
     xkorig, xk, x, y, lo, hi, extrap = _splfit_setup(xk,x,y, lo,hi, per,extrap)
-    x, y, sigy, ix, dxk, yshape = _splfit_args(xk, x, y, sigy)
+    x, y, sigy, ix, dxk, yshape, lo, hi = _splfit_args(xk, x, y, sigy, lo, hi)
+    if nc is None:
+        nc = n - 1  # degree of continuity, nc+1 constraints
+    elif nc<0 or nc>=n:
+        raise ValueError("illegal nc, bigger than n-1 or less than 0")
+    dtype = y.dtype
+    nk1 = dxk.size  # number of intervals between knots
+    one = array(1., dtype=dtype)
+    w = one / (sigy * sigy)  # chi2 weights
+    rdxk = one / dxk
+    x = (x - xk[ix])*rdxk[ix]
+    cco = _bico(n, nc).ravel()  # coefficients for constraint equations
+    cco = cco[:, newaxis]
+    n1, n2 = 1+n, 2+n
+    rat = (roll(dxk, -1) / dxk).reshape(1,nk1).repeat(nc+1)
+    rat[0] = 1
+    rat = rat.cumprod(axis=0)
+    ash0 = (n2, n2+nc, nk1)   # initial shape of upper diagonal form
+    ash1 = (n2, (n2+nc)*nk1)  # final shape, before lo/hi constraints
+    for i, wi in enumerate(w):
+        yi = y[i]
+        wx = wi.copy()
+        b = zeros((n2+nc, nk1))  # always dtype float (double precision)
+        xp = zeros((n1+n, nk1))
+        for j in range(n1):
+            b[j] = bincount(ix, wx*yi, nk1)  # sum(w*y*x**p)
+            xp[j] = bincount(ix, wx, nk1)
+            wx *= x
+        for j in range(1,n1):
+            xp[n+j] = bincount(ix, wx, nk1)  # sum(w*x**p)
+            if j < n:
+                wx *= x
+        # build matrix a in symmetric lower diagonal form
+        a = zeros(ash0)
+        for j in range(n2):
+            if j < n1:
+                a[j, 0:n1-j, :] = xp[j:n1+n-j:2, :]
+            if j:
+                a[j, n1-j:nc+n2-j, :] = cco[n1-j::n2, :]
+        a[1+nc, n1:n2+nc, :] = -rat[0:1+nc, :]
+        a = a.reshape(ash1)
+        b = b.ravel()
+        if not per:
+            # no constraints on final interval, strip them
+            a = a[:, :-(1+nc)]
+            b = b[:-(1+nc)]
+            # adjust a, b for lo and hi constraints, if any
+
+            # Expand a to full (l,u) banded form to use solve_banded.
+            # (solveh_banded only works for positive definite a matrix,
+            # but the constraint unknowns and equations make this untrue)
+            a = concatenate((a[n1:0:-1], a), axis=0)
+            for j in range(1,n2):
+                a[n1-j] = roll(a[n1-j], j)
+            y = solve_banded((n1,n1), a, b, check_finite=False,
+                             overwrite_ab=True, overwrite_b=True)
+        else:
+            y = solves_periodic(a, b, lower=True, check_finite=False,
+                                overwrite_ab=True, overwrite_b=True)
+
+def _bico(deg, nc=None, dtype=float):
+    """Return binomial coefficients up to degree deg."""
+    if nc is None:
+        nc = deg - 1
+    c = zeros((nc+1,deg+1), dtype=dtype)
+    c[0] = 1
+    ci = c[0]
+    for i, cj in enumerate(c[1:]):
+        cj[i+1:] = ci[i:-1].cumsum()
+        ci = cj
+    return c
 
 def _splfit_setup(xk, x, y, lo=(), hi=(), per=None, extrap=None):
     # handle non-tuple endpoint values as a convenience

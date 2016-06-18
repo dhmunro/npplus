@@ -1,3 +1,7 @@
+# Copyright (c) 2016, David H. Munro
+# All rights reserved.
+# This is Open Source software, released under the BSD 2-clause license,
+# see http://opensource.org/licenses/BSD-2-Clause for details.
 """Yorick-like APIs with no good numpy equivalent
 
 spanl(start, stop, num)   returns log-spaced points
@@ -8,10 +12,18 @@ atan(a [,b])         combined one or two argument atan
 cum(x, axis=)        cumsum with prepended 0
 zcen(x, axis=)       pairwise averages, like diff (pairwise differences)
 pcen(x, axis=)       zcen, but copy endpoints
+
+Also provides xrange as a synonym for xrange in python 3, like six.
 """
 
 __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
-           'cum', 'zcen', 'pcen']
+           'cum', 'zcen', 'pcen', 'xrange']
+
+import sys
+if sys.version_info >= (3,0):
+    xrange = range
+else:
+    from __builtin__ import xrange
 
 from numpy import array, asarray, asanyarray, asfarray, zeros, zeros_like
 from numpy import sign, log, absolute, log, exp, maximum, minimum, concatenate

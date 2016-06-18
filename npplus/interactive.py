@@ -1,3 +1,7 @@
+# Copyright (c) 2016, David H. Munro
+# All rights reserved.
+# This is Open Source software, released under the BSD 2-clause license,
+# see http://opensource.org/licenses/BSD-2-Clause for details.
 """Import most names in npplus for interactive use.
 
 from npplus.interactive import *
