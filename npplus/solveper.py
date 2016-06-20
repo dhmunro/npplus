@@ -6,6 +6,9 @@
 
 Adds corner elements to banded matrix connecting final elements of x
 to first equations and first elements of x to final equations.
+
+Also include solves_banded, a variant of solveh_banded that does not
+require a positive definite symmetric matrix.
 """
 from numpy import asfarray, result_type, zeros, eye, arange, roll, diag
 from numpy import concatenate
@@ -118,19 +121,46 @@ def solves_periodic(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
 
     See solve_periodic for details.
     """
-    #  overwrite_ab unused
-    ab, b = asfarray(ab), asfarray(b)
-    u = ab.shape[0] - 1
+    b, u = asfarray(b), ab.shape[0] - 1
+    ab = _solves_symgen(ab, u, lower)
+    # input overwrite_ab unused
+    return solve_periodic((u,u), ab, b, overwrite_ab=True,
+                          overwrite_b=overwrite_b, check_finite=check_finite)
+
+def solves_banded(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
+                  check_finite=True):
+    """Variant of solve_banded for arbitrary symmetric matrices.
+
+    Upper form unless keyword lower is false.  Upper and lower forms are the
+    same as scipy.linalg.solveh_banded, except input to solves_periodic need
+    not be positive definite, and the entire ab array is used:
+
+    A40  A51  a02  a13  a24  a35   upper form
+    A50  a01  a12  a23  a34  a45
+    a00  a11  a22  a33  a44  a55
+
+    a00  a11  a22  a33  a44  a55   lower form
+    a10  a21  a32  a43  a54  A05
+    a20  a31  a42  a53  A04  A15
+
+    See solve_banded for details.  Use solveh_banded if the matrix is known
+    to be positive definite.
+    """
+    b, u = asfarray(b), ab.shape[0] - 1
+    ab = _solves_symgen(ab, u, lower)
+    # input overwrite_ab unused
+    return solve_banded((u,u), ab, b, overwrite_ab=True,
+                        overwrite_b=overwrite_b, check_finite=check_finite)
+
+def _solves_symgen(ab, u, lower):
+    ab = asfarray(ab)
     if lower:
         a = ab[-1:0:-1].copy()
         for i, row in enumerate(a):
             row[:] = roll(row, u-i)
-        ab = concatenate((a, ab), axis=0)
+        return concatenate((a, ab), axis=0)
     else:
         a = ab[-2::-1].copy()
         for i, row in enumerate(a):
             row[:] = roll(row, -1-i)
-        ab = concatenate((ab, a), axis=0)
-    del a
-    return solve_periodic((u,u), ab, b, overwrite_ab=True,
-                          overwrite_b=overwrite_b, check_finite=check_finite)
+        return concatenate((ab, a), axis=0)

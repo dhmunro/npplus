@@ -43,7 +43,7 @@ from numpy import bincount
 from numpy.linalg import inv, eigvals
 from scipy.linalg import solve_banded, solve, solveh_banded
 
-from .solveper import solves_periodic
+from .solveper import solves_periodic, solves_banded
 
 class PwPoly(object):
     """Piecewise polynomial function.
@@ -762,8 +762,8 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     lo : tuple of array_like, optional
     hi : tuple of array_like, optional
         Boundary conditions at the endpoints x[0] and x[-1].  Each tuple
-        represents the values of (dydx, d2ydx2, d3ydx3, ...) at x[0] for lo
-        or x[-1] for hi.  Use None for a derivative to be not specified.
+        represents the values of (dydx, d2ydx2/2, d3ydx3/6, ...) at x[0] for
+        lo or x[-1] for hi.  Use None for a derivative to be not specified.
         The highest derivative you can specify is n-1, that is d2ydx2 for
         a cubic spline, dydx for a quadratic spline, and so on.  For the
         special case that you only wish to specify dydx at an endpoint,
@@ -789,9 +789,7 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
 
     See Also
     --------
-    pline : construct polyline
-    pwfit : piecewise polynomial fit to scattered data
-    PwPoly : piecewise polynomial class
+    pline, PwPoly, splfit, plfit
     """
     # any way to generate other members of family with different BCs?
     # yes -- just pass 0*y and desired BCs
@@ -1097,12 +1095,12 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     lo : tuple of array_like, optional
     hi : tuple of array_like, optional
         Boundary conditions at the endpoints xk[0] and xk[-1].  Each tuple
-        represents the values of (y, dydx, d2ydx2, d3ydx3, ...) at xk[0] for
-        lo or xk[-1] for hi.  Use None for a derivative to be not specified.
-        See the docstring for spline for details; however, note that
-        the lo and hi tuples for splfit() begin with the function value
-        (zero-th derivative), while the lo and hi tuples for spline()
-        begin with the first derivative.
+        represents the values of (y, dydx, d2ydx2/2, d3ydx3/6, ...) at xk[0]
+        for lo or xk[-1] for hi.  Use None for a derivative to be not
+        specified.  See the docstring for spline for details; however, note
+        that the lo and hi tuples for splfit() begin with the function value
+        (zero-th derivative), while the lo and hi tuples for spline() begin
+        with the first derivative.
     per : bool
         True to make all derivatives match at first and last points of xk.
         This produces a PerPwPoly function, which maps any inputs
@@ -1117,28 +1115,61 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     -------
     fit : PwPoly
         The best fit to the given (x,y) with the given knots xk.
-    cost : ndarray, only present with cost=1 keyword parameter
+    cost : tuple of ndarray
+        This return is only present with cost=1 keyword parameter.
         The Lagrange multipliers used to enforce the chi2 minimization
-        constraints associated with the continuous derivatives.  The
-        dimensions have any leading dimensions of y, and two trailing
-        dimensions nc+1 = number of continuity constraints and
-        len(xk)-2 = the number of interior knot points.
+        constraints associated with the continuous function values
+        and nc derivative values, plus any additional boundary
+        condition constraints you specified with the lo or hi keywords.
+        The interior knot point constraints are cost[0] for function
+        continuity, cost[1] for first derivative continuity, through
+        cost[nc] for nc-derivative continuity.  Then cost[nc+1:nc+1+nlo]
+        are the costs of the lo constraints and cost[nc+1+nlo:] are
+        the costs of the hi constraints, where nlo=len(lo).
+
+    The shape of each of the cost[:nc+1] interior constraints is
+    y[...,1:-1].shape, that is, any leading dimensions of y follwed by
+    the number of interior knot points where the constraints apply.
+    The shape of each of the cost[nc+1:] boundary constraints is
+    y[...,0].shape, that is, any leading dimensions of y.
+
+    The cost values require a bit more explanation.  Each interior
+    constraint is schematically c[this] - l2r.dot(c[prev]) = 0 where
+    l2r is the linear transformation mapping the polynomial coefficients
+    c[prev] in the interval to the left to their values at [this]
+    knot.  That is, each interior constraint is that the jump in the
+    value of the polynomial coefficient of some degree be zero.  The
+    cost is defined to be the partial derivative of chi2 with respect
+    to that jump.  In other words, if we relaxed just that one constraint
+    and allowed a jump of dc, chi2 would change by cost*dc.  We keep
+    this sign convention for the lo and hi constraints as well -- a
+    positive cost means that if the coefficient changes by a positive
+    amount for increasing x across the knot, then chi2 will increase.
+
+    See Also
+    --------
+    plfit, spline, pline, PwPoly
+
     """
     # There is a degree-n B-spline algorithm analogous to the degree-1
     # algorithm used in plfit.  The direct matrix solve here is far
     # less messy, though more equations for the matrix solve.  The
     # additional unknowns are the Lagrange multipliers, which
-    # represent the cost of the continuity constraints.  Note that a
-    # direct deBoor B-spline evaluator is far slower than PwPoly,
-    # especially in interpreted code, although PwPoly needs several
-    # times as much stored descriptive data for the case of maximal
-    # continuity.
+    # represent the cost of the continuity constraints.  The conversion
+    # from B-spline control points back to PwPoly coefficients is also
+    # non-trivial.
     xkorig, xk, x, y, lo, hi, extrap = _splfit_setup(xk,x,y, lo,hi, per,extrap)
     x, y, sigy, ix, dxk, yshape, lo, hi = _splfit_args(xk, x, y, sigy, lo, hi)
     if nc is None:
         nc = n - 1  # degree of continuity, nc+1 constraints
     elif nc<0 or nc>=n:
         raise ValueError("illegal nc, bigger than n-1 or less than 0")
+    if maximum(len(lo), len(hi)) > 1+nc:
+        raise ValueError("hi or lo longer than degree of continuity nc")
+    if not per:
+        if extrap is None:
+            extrap = nc
+        extrap = asarray(extrap) + zeros(2,dtype=int)
     dtype = y.dtype
     nk1 = dxk.size  # number of intervals between knots
     one = array(1., dtype=dtype)
@@ -1146,53 +1177,118 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     rdxk = one / dxk
     x = (x - xk[ix])*rdxk[ix]
     cco = _bico(n, nc).ravel()  # coefficients for constraint equations
-    cco = cco[:, newaxis]
-    n1, n2 = 1+n, 2+n
-    rat = (roll(dxk, -1) / dxk).reshape(1,nk1).repeat(nc+1)
-    rat[0] = 1
-    rat = rat.cumprod(axis=0)
-    ash0 = (n2, n2+nc, nk1)   # initial shape of upper diagonal form
+    n1, n2, nc1 = 1+n, 2+n, 1+nc
+    dxscl = dxk.reshape(nk1,1).repeat(n1,axis=1)
+    dxscl[0] = 1
+    dxscl = scale.cumprod(axis=1)
+    rat = roll(dxscl[:,:nc1], -1, axis=0) / dxscl[:,:nc1]
+    ash0 = (n2, nk1, n2+nc)   # initial shape of lower diagonal form
     ash1 = (n2, (n2+nc)*nk1)  # final shape, before lo/hi constraints
+    nhi, nlo = len(hi), len(lo)
+    nstrip = nc1 - nhi
+    if lo:
+        alo = zeros((n2,nlo))
+        alo[nlo,:] = -1  # nlo additional Lagrange multipliers (costs)
+        zblo = zeros(nlo)
+    # Need to loop here because matrix a potentially different for
+    # each component of y due to differing sigy.
+    c = []
     for i, wi in enumerate(w):
         yi = y[i]
         wx = wi.copy()
-        b = zeros((n2+nc, nk1))  # always dtype float (double precision)
-        xp = zeros((n1+n, nk1))
+        b = zeros((nk1, n2+nc))  # always dtype float (double precision)
+        xp = zeros((nk1, n1+n))
         for j in range(n1):
-            b[j] = bincount(ix, wx*yi, nk1)  # sum(w*y*x**p)
-            xp[j] = bincount(ix, wx, nk1)
+            b[:,j] = bincount(ix, wx*yi, nk1)  # sum(w*y*x**p)
+            xp[:,j] = bincount(ix, wx, nk1)
             wx *= x
         for j in range(1,n1):
-            xp[n+j] = bincount(ix, wx, nk1)  # sum(w*x**p)
+            xp[:,n+j] = bincount(ix, wx, nk1)  # sum(w*x**p)
             if j < n:
                 wx *= x
         # build matrix a in symmetric lower diagonal form
         a = zeros(ash0)
         for j in range(n2):
             if j < n1:
-                a[j, 0:n1-j, :] = xp[j:n1+n-j:2, :]
+                a[j, :, 0:n1-j] = xp[:, j:n1+n-j:2]
             if j:
-                a[j, n1-j:nc+n2-j, :] = cco[n1-j::n2, :]
-        a[1+nc, n1:n2+nc, :] = -rat[0:1+nc, :]
+                a[j, :, n1-j:nc+n2-j] = cco[n1-j::n2]
+        a[nc1, :, n1:n2+nc] = -rat[:, 0:nc1]
         a = a.reshape(ash1)
         b = b.ravel()
         if not per:
-            # no constraints on final interval, strip them
-            a = a[:, :-(1+nc)]
-            b = b[:-(1+nc)]
             # adjust a, b for lo and hi constraints, if any
+            if nstrip:
+                # strip unused constraints on final interval
+                a = a[:, :-nstrip]
+                b = b[:-nstrip]
+            if hi:
+                # fill in b values for hi constraints
+                dxbc = dxscl[-1]
+                for ibc in range(nhi):
+                    b[ibc-nhi] = hi[ibc][i] * dxbc[ibc]
+            if lo:
+                # no vestigial constraint equations on lo side, add them
+                a = concatenate((alo, a), axis=1)
+                b = concatenate((zblo, b))
+                dxbc = -dxscl[0]  # apply minus sign here
+                for ibc in range(nlo):
+                    b[ibc] = lo[ibc][i] * dxbc[ibc]
 
-            # Expand a to full (l,u) banded form to use solve_banded.
-            # (solveh_banded only works for positive definite a matrix,
-            # but the constraint unknowns and equations make this untrue)
-            a = concatenate((a[n1:0:-1], a), axis=0)
-            for j in range(1,n2):
-                a[n1-j] = roll(a[n1-j], j)
-            y = solve_banded((n1,n1), a, b, check_finite=False,
-                             overwrite_ab=True, overwrite_b=True)
+            # solveh_banded only works for positive definite a matrix.
+            # The constraint unknowns and equations may invalidate this,
+            # so even though a is symmetric, it may not be positive.
+            yi = solves_banded(a, b, lower=True, check_finite=False,
+                               overwrite_ab=True, overwrite_b=True)
         else:
-            y = solves_periodic(a, b, lower=True, check_finite=False,
-                                overwrite_ab=True, overwrite_b=True)
+            nstrip = 0
+            yi = solves_periodic(a, b, lower=True, check_finite=False,
+                                 overwrite_ab=True, overwrite_b=True)
+        c.append(yi)
+    c = array(c)
+    # The coefficients c include the Lagrange multipliers.  Disentangle.
+    mask = zeros(ash0[1:], dtype=bool)
+    mask[:, :n2] = True  # mark the coefficients
+    mask = mask.reshape(ash1[1:])
+    if nstrip:
+        mask = mask[:-nstrip]
+    if nlo:
+        mask = concatenate((zeros(zblo.shape,dtype=bool), mask))
+    if cost:
+        cc = -2.*c[:, ~mask]  # variables were -lambda/2
+    c = c[:, mask]
+    ny = y.shape[0]
+    pwp = c.reshape(ny, nk1, n1) / dxscl  # restore dx units
+    c = zeros((n1, ny, nk1+2), dtype=dtype)
+    c[:,:,1:-1] = transpose(pwp, (2,0,1))
+    c[:,:,0] = c[:,:,1]
+    c[:,:,-1] = polyddx(c[:,:,-2], dxk[-1])
+    if not per:
+        c[extrap[0]+1:,...,0] = 0
+        c[extrap[1]+1:,...,-1] = 0
+    pwp = PerPwPoly.new(xk, c) if per else PwPoly.new(xk, c)
+    if cost:
+        if not per:
+            ihi = nlo + nc1*(nk1-1)
+            costl, cost, costh = cc[:,:nlo], cc[:,nlo:ihi], cc[:,ihi:]
+            costl *= dxscl[0,:nlo]
+            cost = cost.reshape(ny, nk1-1, nc1) * dxscl[:-1,:nc1]
+            costh *= dxscl[-1,:nhi]
+            cost = transpose(cost, (2,0,1)).copy().reshape((nc1,)+yshape
+                                                           +(nk1-1,))
+            costl, costh = costl.T.copy(), costh.T.copy()
+            costl = costl.reshape((nlo,)+yshape)
+            costh = costh.reshape((nhi,)+yshape)
+            cost = tuple(cost) + tuple(costl) + tuple(costh)
+        else:
+            cost = cost.reshape(ny, nk1+1, nc1)
+            cost[:,:-1] *= dxscl
+            cost[:,-1] *= dxscl[0]
+            cost = transpose(cost, (2,0,1)).copy().reshape((nc1,)+yshape
+                                                           +(nk1+1,))
+            cost = tuple(cost)
+        return pwp, cost
+    return pwp
 
 def _bico(deg, nc=None, dtype=float):
     """Return binomial coefficients up to degree deg."""
