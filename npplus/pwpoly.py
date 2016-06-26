@@ -43,7 +43,8 @@ from numpy import bincount
 from numpy.linalg import inv, eigvals
 from scipy.linalg import solve_banded, solve, solveh_banded
 
-from .solveper import solves_periodic, solves_banded
+from .solveper import solve_periodic, solves_periodic, solves_banded
+from .solveper import _diag_to_norm as d2n  # REMOVE ME!!!
 
 class PwPoly(object):
     """Piecewise polynomial function.
@@ -275,7 +276,7 @@ class PwPoly(object):
             defined with additional dimensions, in which case those become
             the leading dimensions of the result arrays.
         """
-        x = array(x)    # make copy here for -= below
+        x = asfarray(array(x))    # make copy here for -= below
         ix = searchsorted(self.xk, x)
         x -= self.xk0[ix]
         c = self.c[..., ix]
@@ -651,7 +652,7 @@ class PwPoly(object):
             other = other.c
             numb = False
         else:
-            other = asarray(other, dtype=self.c.dtype)[...,newaxis]
+            other = asfarray(other, dtype=self.c.dtype)[...,newaxis]
             numb = True
         return this, other, numb
 
@@ -793,10 +794,10 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     """
     # any way to generate other members of family with different BCs?
     # yes -- just pass 0*y and desired BCs
-    x, y = map(asfarray, (x, y))
+    x, y = asfarray(x), asfarray(y)
     dtype = promote_types(x.dtype, y.dtype)
     x, y = x.astype(dtype), y.astype(dtype)
-    nk = len(x)
+    nk = x.size
     if x.ndim!=1 or nk<2:
         raise TypeError("x must be 1D array_like with at least two points")
     shape = y.shape
@@ -804,7 +805,8 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
         raise TypeError("y must have same final axis as x")
     shape = shape[:-1]
     nshape = prod(shape)
-    nm1 = n - 1
+    y = y.reshape(nshape, nk)
+    nm1, nk1 = n-1, nk-1
     if not isinstance(lo, tuple):  lo = (lo,)
     if not isinstance(hi, tuple):  hi = (hi,)
     if per and (lo or hi or (extrap is not None)):
@@ -821,8 +823,9 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
         raise TypeError("cannot specify more than n-1st derivative in bc")
     if per:
         y = y.copy()
-        y[...,-1] = y[...,0]  # ignore given y[-1], assume same as y[0]
+        y[:,-1] = y[:,0]  # ignore given y[-1], assume same as y[0]
     if n < 2:
+        y = y.reshape(shape+(nk,))
         p = PerPwPoly(x, y) if per else PwPoly(x, y)
         xk, c = p.xk, p.c
         c[...,0] = c[...,1]
@@ -831,12 +834,14 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
             c[...,-1] = polyddx(p.c[...,-2], xk[-1]-xk[-2])
             c[extrap[1]+1:,...,-1] = 0
         return p
-    nlo = len(lo) - lo.count(None)
+    lo += (None,)*(nm1 - len(lo))
+    lo = lo[:nm1]  # lo must always have exactly nm1 items for later
+    nlo = nm1 - lo.count(None)
     nhi = len(hi) - hi.count(None)
     missing = nm1 - (nlo+nhi)
-    if missing:
+    if missing and not per:
         # insert default boundary conditions where unspecified
-        lo = list(lo + (None,)*(nm1 - len(lo)))
+        lo = list(lo)
         hi = list(hi + (None,)*(nm1 - len(hi)))
         i = n - 2
         while missing:
@@ -853,120 +858,69 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
             i -= 1
         lo = tuple(lo)
         hi = tuple(hi)
-    one = ones((), dtype=dtype)
-    mhi = _bico(n, dtype=dtype)[:,1:]
+    bc = _bico(n, dtype=dtype)[:,1:]
     # [[  1.,   1.,   1.,   1.,   1.],
     #  [  1.,   2.,   3.,   4.,   5.],
     #  [  0.,   1.,   3.,   6.,  10.],
     #  [  0.,   0.,   1.,   4.,  10.],
     #  [  0.,   0.,   0.,   1.,   5.]]  for example, when n=5
-    m = concatenate((mhi, zeros_like(mhi)), axis=1).ravel()
-    nun = (nk-1)*n        # number of unknowns
-    diags = one.repeat(nun)  # begin with subdiagonal
-    diags[nm1::n] = 0     # 1 1 1 1 0 1 1 1 1 0 ... 1 1 1 1    when n=5
-    diags = [diags]
-    strd = n+n+1
-    for i in range(nm1):  # continue with diagonal and superdiagonals
-        d = m[i::strd][newaxis].repeat(nk,axis=0).ravel()[0:nun]
-        d = roll(d, i, axis=-1)
-        diags.append(d)
-    dx = x[1:] - x[:-1]     # nk-1 differences
-    if nk > 2:
-        # matching at knot between intervals needs powers of interval ratio
-        dxr = dx[1:] / dx[:-1]  # nk-2 ratios of intervals
-        dxr = dxr[:,newaxis].repeat(n, axis=1)
-        dxr[:,0] = -1
-        dxr = dxr.cumprod(axis=1)
-        dxr[:,0] = 1   # (nk-2)*[1,-dxr,-dxr**2,...,-dxr**(n-1)]
-        dxr = concatenate((dxr[0][0:n-1], dxr.ravel(), dxr[0][0:1]))
+    bc[0,-1] = 0  # subdiagonal, no continuity equation for n-th derivative
+    ab = bc[::-1]  # solve_banded diagonal form, upper diagonals first
+    nun = nk1 * n  # (nk-1)*n unknowns and equations
+    ab = ab[:,newaxis].repeat(nk-1, axis=1).reshape(n, nun)
+    dx = x[1:] - x[:-1]
+    dxr = dx / roll(dx, -1)  # current/next interval width, periodic case
+    dxr = dxr[:,newaxis].repeat(n, axis=1)
+    dxr[:,0] = -1
+    dxr = dxr.cumprod(axis=1)
+    dxr[:,0] = 1  # 1, -R, -R**2, -R**3, -R**4, 1, -R, ...
+    ab = concatenate((roll(dxr.ravel(), nm1)[newaxis], ab))
+    b = zeros((nun, nshape), dtype)
+    y = y.T
+    b[0::n] = y[1:] - y[:-1]
+    # compute powers of dx for normalization, [dx, dx**2, ... dx**n]
+    dxr = dx[:,newaxis].repeat(n, axis=1).cumprod(axis=1)
+    if per:
+        b = solve_periodic((1,nm1), ab, b, overwrite_ab=True,
+                           overwrite_b=True, check_finite=False)
     else:
-        dxr = ones(n, dtype=dtype)
-    dxr[0:n-1] = 0
-    diags.append(dxr)  # uppermost superdiagonal
-    zero = zeros(shape, dtype=dtype)
-    rhs = zero[...,newaxis].repeat(nun, axis=-1)
-    rhs[...,0::n] = y[...,1:] - y[...,:-1]
-    diags = array(diags[::-1])    # order required for solve_banded
-    lobc = eye(nm1, dtype=dtype)  # n-1 square matrix affected by lo BCs
-    # lobc = diags[:-2, :n]  all zeros initially
-    hibc = mhi[1:].copy()         # (n-1)x(n) matrix affected by hi BCs
-    nlnu = (1+nlo, nm1-nlo)       # how solve_banded will interpret diags
-    if nlo:
-        rhs = roll(rhs, nlo, axis=-1)
-        i = 0    # lobc[i], rhs[i] is current row (equation)
-        for bnd in lo:
-            if bnd is None:  # remove row from lobc
-                lobc[i:-1], lobc[-1:] = lobc[i+1:], 0
-            else:            # set rhs and increment row
-                rhs[...,i] = bnd
-                i += 1
-                if i == nlo:
-                    break
-        lobc[nlo:] = 0
-        lobc = roll(lobc, nm1-nlo, axis=0)
-        for i in range(nm1):
-            diags[i,0:nm1-i] = lobc.diagonal(-i)
-    if nhi:
-        i = 0    # hibc[i], rhs[i-nhi] is current row (equation)
-        for bnd in hi:
-            if bnd is None:  # remove row from hibc
-                hibc[i:-1], hibc[-1:] = hibc[i+1:], 0
-            else:            # set rhs and increment row
-                rhs[...,i-nhi] = bnd
-                i += 1
-                if i == nhi:
-                    break
-        hibc[nhi:] = 0
-        diags[-1,-n:-1] = hibc.diagonal(0)
-        for i in range(1,nm1):
-            diags[-1-i,-n+i:] = hibc.diagonal(i)
-    # note: numpy.linalg.solve does multiple solves since numpy 1.4
-    #  scipy.linalg.solve_banded since before 0.7
-    if shape:
-        # solve_banded wants additional y dimensions last
-        rhs = rhs.reshape(nshape, nun).T.copy()
-    rhs = solve_banded(nlnu, diags, rhs, overwrite_ab=(not per),
-                       overwrite_b=True, check_finite=False)
-    if per:  # FIXME: use solve_periodic instead
-        # So far, we have natural spline solution with highest derivatives
-        # at first and last knots equal zero.  Now solve each BC=1 with all
-        # others =0 to derive n-1 more conditions for continuity of the
-        # function.  (All dy are zero in these solves.)
-        b = zeros((nun, nm1), dtype=dtype)
-        for i in range(nm1):
-            if i < nlo:
-                b[i, i] = 1
-            else:
-                b[i-nm1, i] = 1
-        b = solve_banded(nlnu, diags, b, overwrite_ab=True,
+        ab[0,:nm1] = 0  # unused periodic elements
+        dxb, bb, bc = dxr[-1], b[-nm1:], bc[1:]
+        k = -1
+        for i, bnd in enumerate(hi):
+            if bnd is not None:
+                k += 1
+                bb[k] = bnd * dxb[i]  # normalize value with dx**p
+                kmn = k - n
+                ab.ravel()[kmn:kmn*nun:1-nun] = bc[i, k:]
+        if nlo:
+            # lo BCs shift equations, number of lower and upper diagonals
+            b = roll(b, nlo, axis=0)
+        dxb = dxr[0]
+        j, k = nm1*nun, nlo-1
+        for i, bnd in enumerate(reversed(lo)):
+            if bnd is not None:
+                mi = nm1-1 - i
+                b[k] = bnd * dxb[mi]  # normalize value with dx**p
+                k -= 1
+                j -= nun
+                abeq = ab.ravel()[j::1-nun]
+                abeq[mi] = 1
+        b = solve_banded((1+nlo,nm1-nlo), ab, b, overwrite_ab=True,
                          overwrite_b=True, check_finite=False)
-        # translate b in last interval to final knot point
-        bhi = concatenate((zeros_like(b[0:1,:]), b[-n:,:]), axis=0)
-        bhi = polyddx(bhi, one, nm1)[1:]
-        dxr = (dx[0]/dx[-1]).repeat(nm1).cumprod()
-        m = dxr.dot(bhi) - b[0:nm1,:]
-        # compute discontinuities in natural spline solution
-        db = concatenate((zeros_like(rhs[0:1,...]), rhs[-n:,...]), axis=0)
-        db = dxr.dot(polyddx(db, one, nm1)[1:]) - rhs[0:nm1,...]
-        db = solve(m, -db, overwrite_a=True, overwrite_b=True,
-                   check_finite=False)
-        # diags.dot(db) + drhs = 0 is periodic BC, adjust rhs accordingly
-        rhs += b.dot(db)
-    rdxn = 1./dx.reshape(nk-1, 1).repeat(n, axis=1).cumprod(axis=1).ravel()
-    if shape:
-        rdxn = rxdn.reshape(nun, 1)
-    rhs *= rdxn
-    rhs = transpose(rhs.reshape(nk-1, n, nshape), (1,2,0)).copy()
-    rhs = rhs.reshape((n,) + shape + (nk-1,))
-    c = concatenate((rhs[0:1,...], rhs), axis=0)
-    c = concatenate((c, c[...,-1:]), axis=-1)
-    c[0,...] = y
-    c = concatenate((c[...,0:1], c), axis=-1)
-    c[...,-1] = polyddx(c[...,-2], dx[-1])
-    if not per:
+    rdxn = 1./dxr.ravel()
+    b *= rdxn[:,newaxis]
+    b = concatenate((y[:-1,newaxis], b.reshape(nk-1, n, nshape)), axis=1)
+    b = transpose(b, (1,2,0)).copy()
+    b = b.reshape((n+1,) + shape + (nk-1,))
+    c = polyddx(b[...,-1:], dx[-1:])
+    c = concatenate((b[...,0:1], b, c), axis=-1)
+    if per:
+        return PerPwPoly.new(x, c)
+    else:
         c[extrap[0]+1:,...,0] = 0
         c[extrap[1]+1:,...,-1] = 0
-    return PerPwPoly.new(x, c) if per else PwPoly.new(x, c)
+        return PwPoly.new(x, c)
 
 def pline(x, y, extrap=None, per=False):
     """Return a piecewise linear function through given points (x,y).
