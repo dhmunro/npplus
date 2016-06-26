@@ -39,7 +39,7 @@ from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
 from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
 from numpy import prod, cumprod, isclose, allclose, transpose, ones_like
-from numpy import bincount
+from numpy import bincount, array_equal, sort
 from numpy.linalg import inv, eigvals
 from scipy.linalg import solve_banded, solve, solveh_banded
 
@@ -77,13 +77,13 @@ class PwPoly(object):
         As a convenience, strictly decreasing xk are also accepted; the
         constructor will reverse both the xk and args.
     *args : each array_like
-        Each is a list of function and derivative values yk, dydxk, d2ydx2k,
+        Each is a list of function and derivative values yk, dydxk, d2ydx2k/2,
         etc. corresponding to the points xk.  This produces an odd degree
         polynomial in each interval, continuous to the specified derivatives
         at the xk points.  To get even degree polynomials, specify the final
         derivative with one fewer point than xk -- this produces a polynomial
         of degree P=2*N continuous at xk up to the N-1 derivatives you
-        specified at all xk points, and with the P-th (not N-th) derivative
+        specified at all xk points, and with the P-th (not N-th) derivative/p!
         equal to the final values specified.  Finally, for complete generality,
         you can specify every argument with one more point than xk.  In this
         case, the arguments simply become the coefficients of the polynomials
@@ -91,6 +91,10 @@ class PwPoly(object):
         the origin for coefficients in each interval is the first point of
         the interval (the smaller), except for the semi-infinite interval
         before the first knot point, which is relative to the first knot.
+
+    Note that when you specify derivatives higher than first, you need to
+    divde the n-th derivative by n!.  That is, you are actually furnishing
+    the Taylor series coefficients, not the derivatives.
 
     All the ``*args`` may have a set of leading axes to define a
     multidimensional piecewise polynomial function of ``xk``.  That is,
@@ -131,7 +135,7 @@ class PwPoly(object):
     roots()  : x where p(x) == 0 (error unless p.ndim==0)
     deriv(m) : mth derivative
     integ(m) : mth integral
-    reknot(xk, n) : estimate with new knot points
+    reknot(xk, n) : estimate with new knot points and degree
     addknots(xk) : return same function with additional knot points
     allknots(p) : find union of knot points
     jumps(n) : return discontinuous jumps at knot points
@@ -142,6 +146,12 @@ class PwPoly(object):
     It should work tolerably well at or below degree 7, but roundoff errors
     will become significant at higher degree.  To get a better fit with
     PwPoly, use more knots, not higher degree.
+
+    PwPoly(x, y) where y has one more or one less element than x produces
+    a histogram, that is, a piecewise polynomial of degree zero.  This is
+    probably the only useful application of the PwPoly constructor to
+    produce a PwPoly of even degree.  For other even degree piecewise
+    polynomials, you probably want to use spline or splfit.
 
     See also
     --------
@@ -302,6 +312,16 @@ class PwPoly(object):
 
     def deriv(self, m=1):
         """Derivative as a new piecewise polynomial.
+
+        Parameters
+        ----------
+        m : int
+            The number of derivatives to perform.
+
+        Returns
+        -------
+        dpdx : PwPoly
+            The derivative of the PwPoly.
         """
         c = self.c
         s = (1,)*(c.ndim - 1)
@@ -315,6 +335,23 @@ class PwPoly(object):
 
     def integ(self, m=1, k=None, lbnd=0):
         """Integral as a new piecewise polynomial.
+
+        Parameters
+        ----------
+        m : int
+            The number of integrations to perform.
+        k : array_like
+            Integration constants. The first constant is applied to the
+            first integration, the second to the second, and so on. The
+            list of values must less than or equal to `m` in length and any
+            missing values are set to zero.
+        lbnd : Scalar
+            The lower bound of the definite integral.
+
+        Returns
+        -------
+        ipdx : PwPoly
+            The integral of the PwPoly.
         """
         c = self.c
         consts = zeros((m,) + c.shape[1:-1])
@@ -491,21 +528,21 @@ class PwPoly(object):
             raise TypeError("new knot points must be 1D array_like")
         if xk[0] > xk[-1]:
             xk = xk[::-1]  # permit decreasing xk as convenience
-        h = (n - 1) // 2
-        if h >= 0:
-            c = self(xk, h)
-            if h == 0:
-                c = c[newaxis]
-        else:
-            c = (self.c[...,0:1]+xk)[0:0,...]
-        if not (n & 1):
-            # breaks if only one knot point...
-            dx = 0.5*(xk[1:] - xk[:-1])
-            x = xk + concatenate(dx, dx[-1:])
-            x = concatenate((xk[0]-dx[0:1], x))
-            ix = searchsorted(self.xk, x)
-            c = concatenate((c, self.c[...,ix][-1:,...]))
-        return self.new(xk, c)
+        isper = isinstance(self, PerPwPoly)
+        if isper and (absolute(xk[-1]-xk[0]-self.period) > 1.e-6*self.period):
+            raise ValueError("new PerPwPoly knots must have same period as old")
+        h = maximum((n - 1)//2, 0)
+        c = self(xk, h)
+        if not h:
+            c = c[newaxis]
+        c = tuple(c)
+        if not (n & 1):  # breaks if only one knot point...
+            c += (self.deriv(n)(0.5*(xk[1:] + xk[:-1])),)
+        pw = object.__new__(self.__class__)
+        PwPoly.__init__(pw, xk, *c)
+        if isper:
+            pw.period = xk[-1] - xk[0]
+        return pw
 
     def addknots(self, xk, _nocheck=False):
         """Return a new PwPoly with knot points xk that matches this one.
@@ -604,7 +641,7 @@ class PwPoly(object):
     def __len__(self):
         s = self.shape
         if not s:
-            raise TypeError("scalar piecewise polynomial has no len()")
+            raise TypeError("scalar PwPoly has no len()")
         return s[0]
 
     def __getitem__(self, key):

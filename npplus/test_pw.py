@@ -67,6 +67,7 @@ class TestPwPoly(unittest.TestCase):
         c4 = [ 5., 10., 0., 0.]
         self.c = np.array([c0, c1, c2, c3, c4]).T.copy()
         self.pw3 = nppw.PwPoly.new(self.xk, self.c)
+        self.dydxk = self.c[1,1:]  # for testing PwPoly
         # as periodic ignoring yk[-1]
         c1 = [1., 3., -3.6, 0.6]
         c2 = [1., -2.4, -1.8, 1.]
@@ -87,14 +88,97 @@ class TestPwPoly(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_pwpoly(self):
+        """Check PwPoly class."""
+        # note that pline tests PwPoly(x,y)
+        pw = nppw.PwPoly(self.xk, self.yk, self.dydxk)
+        ts, tr = str(pw), repr(pw)
+        self.assertTrue(np.allclose(self.xk, pw.xk) and
+                        np.allclose(self.c, pw.c), "PwPoly failed")
+        y = pw(self.xk)
+        yy, dydx = pw(self.xk, 1)
+        self.assertTrue(np.allclose(y,yy) and np.allclose(y, self.c[0,1:]) and
+                        np.allclose(dydx, self.c[1,1:]), "PwPoly () failed")
+        pw = nppw.PwPoly(self.xk[::-1], self.yk[::-1], self.dydxk[::-1])
+        self.assertTrue(np.allclose(self.xk, pw.xk) and
+                        np.allclose(self.c, pw.c), "PwPoly rev failed")
+        pw2 = nppw.PwPoly(self.xk, [self.yk, -self.yk],
+                          [self.dydxk, -self.dydxk])
+        c2 = np.transpose([self.c, -self.c], (1,0,2))
+        self.assertTrue(np.allclose(self.xk, pw2.xk) and len(pw2)==2 and
+                        np.allclose(c2, pw2.c), "PwPoly multi failed")
+        self.assertTrue(len(pw2)==2 and pw2.shape==(2,) and pw2.ndim==1 and
+                        pw2.deg==3 and pw.ndim==0 and pw.shape==() and
+                        pw.deg==3 and pw.degree()==3,
+                        "PwPoly properties failed")
+        j = pw.jumps()[-1]
+        self.assertTrue(np.allclose(pw.jumps(2), np.zeros((3,4))) and
+                        np.allclose(j, [-1., 2.5, -3.5, 2.]),
+                        "PwPoly jumps failed")
+        pwx = (+pw + 2.25*pw + (0 + pw*0.25)) - pw/2
+        self.assertTrue(np.allclose(self.xk, pwx.xk) and
+                        np.allclose(3*self.c, pwx.c), "PwPoly +-*s failed")
+        pwx = pw2[0]
+        self.assertTrue(np.allclose(self.xk, pwx.xk) and
+                        np.allclose(self.c, pwx.c), "PwPoly [] failed")
+        pwx = -pw2[::-1]
+        self.assertTrue(np.allclose(self.xk, pwx.xk) and
+                        np.allclose(c2, pwx.c), "PwPoly [] or neg failed")
+        pwx = pw2 + pw
+        c2 = np.transpose([2*self.c, np.zeros_like(self.c)], (1,0,2))
+        self.assertTrue(np.allclose(self.xk, pwx.xk) and
+                        np.allclose(c2, pwx.c), "PwPoly multi + failed")
+        pwx = pw2 - pw
+        c2 = np.transpose([np.zeros_like(self.c), -2*self.c], (1,0,2))
+        self.assertTrue(np.allclose(self.xk, pwx.xk) and
+                        np.allclose(c2, pwx.c), "PwPoly multi - failed")
+        pwx = nppw.pline(self.xk, self.yk).deriv()
+        pwy = nppw.PwPoly(self.xk, [0, -2, 8])  # test histogram, two ways
+        pwz = nppw.PwPoly(self.xk, [0, 0, -2, 8, 0])
+        self.assertTrue(np.allclose(self.xk, pwz.xk) and
+                        np.allclose(pwx.c, pwy.c) and np.allclose(pwx.c, pwz.c),
+                        "PwPoly histogram or deriv failed")
+        pw0 = pw.deriv(4)
+        self.assertTrue(np.allclose(self.xk, pw0.xk) and
+                        np.allclose(pw0.c, np.zeros((1,5))),
+                        "PwPoly deriv(4) failed")
+        z, zx = pw.roots(), pwx.roots()
+        self.assertTrue(np.allclose(z, [-2., 0.34910147, 2.4702701]) and
+                        np.allclose(zx, [-1., 0., 2., 3.]),
+                        "PwPoly roots failed")
+        ipw2 = pw2.integ(lbnd=0, k=[0.,0.])
+        pw2d = ipw2.deriv()
+        self.assertTrue(np.allclose(pw2d.c, pw2.c),
+                        "PwPoly integ or deriv failed")
+        x = np.r_[-1.:3.4:0.5]
+        pwp = nppw.PerPwPoly(self.xk, self.yk)
+        pwx, pwpx = pw.reknot(x), pwp.reknot(x[::-1])
+        y, yx, yp, ypx = pw(x,3), pwx(x,3), pwp(x,3), pwpx(x,3)
+        pwy = pw.reknot(x, 2)
+        yxx = pwy(x)
+        self.assertTrue(np.allclose(y,yx) and np.allclose(yp,ypx) and
+                        np.allclose(y[0],yxx), "PwPoly reknot failed")
+        qw = pw + pwx
+        qwx = 2*pwx
+        self.assertTrue(np.allclose(qw.xk, qwx.xk) and
+                        np.allclose(qw.c, qwx.c), "PwPoly mixed + failed")
+        qw = nppw.pline(self.xk, self.xk)
+        qwx, qpw = qw*qw, qw*pw
+        y, yx, yp, ypx = qw(x)**2, qwx(x), qw(x)*pw(x), qpw(x)
+        self.assertTrue(np.allclose(y,yx) and np.allclose(yp,ypx),
+                        "PwPoly*PwPoly failed")
+
     def test_spline(self):
-        """Check spline."""
+        """Check spline and pline."""
         pw = nppw.spline(self.xk, self.yk)
         self.assertTrue(np.allclose(self.xk, pw.xk) and
                         np.allclose(self.c, pw.c), "spline failed")
         pw = nppw.spline(self.xk, self.yk, per=1)
         self.assertTrue(np.allclose(self.xk, pw.xk) and
                         np.allclose(self.cp, pw.c), "spline per failed")
+        y, yk = pw(self.xk), self.yk.copy()
+        yk[-1] = yk[0]
+        self.assertTrue(np.allclose(y, yk), "spline per () failed")
         pw = nppw.spline(self.xk, self.yk, lo=(None,0), hi=(None,0))
         self.assertTrue(np.allclose(self.xk, pw.xk) and
                         np.allclose(self.c, pw.c), "spline hilo failed 1")
@@ -124,6 +208,10 @@ class TestPwPoly(unittest.TestCase):
         pw = nppw.pline(self.xk, self.yk, per=1)
         self.assertTrue(np.allclose(self.xk, pw.xk) and
                         np.allclose(self.clp, pw.c), "pline per failed")
+        pw = nppw.spline(self.xk, [self.yk, -self.yk])
+        c2 = np.transpose([self.c, -self.c], (1,0,2))
+        self.assertTrue(np.allclose(self.xk, pw.xk) and
+                        np.allclose(c2, pw.c), "spline multi failed")
 
     def test_splfit(self):
         """Check splfit."""
