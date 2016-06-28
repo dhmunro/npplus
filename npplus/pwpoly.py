@@ -987,7 +987,7 @@ PwPoly.spline = staticmethod(spline)
 def _plfitter(adiag, asup, b, lo=None, hi=None, per=False, **kwargs):
     y = b.copy()
     if per:
-        a = array([adiag[::-1], asup[::-1]])  # symmetric tridiag, lower form
+        a = array([adiag[:-1], asup[:-1]])  # symmetric tridiag, lower form
         a[0,0] += adiag[-1]
         b[0] += b[-1]
         y[:-1] = solves_periodic(a, b[:-1], lower=True,
@@ -997,11 +997,13 @@ def _plfitter(adiag, asup, b, lo=None, hi=None, per=False, **kwargs):
         a = array([adiag, asup])  # symmetric tridiag, lower form
         if lo is not None:
             y[0] = lo
-            b = b[0:]
+            a = a[:,1:]
+            b = b[1:]
             b[0] -= lo * asup[0]
             lo = 1
         if hi is not None:
-            y[0] = hi
+            y[-1] = hi
+            a = a[:,:-1]
             b = b[:-1]
             b[-1] -= hi * asup[-2]  # asup[-1] is zero padding
             hi = -1
@@ -1309,11 +1311,11 @@ def _splfit_setup(xk, x, y, lo=(), hi=(), per=None, extrap=None):
             extrap = extrap[::-1]
         except (TypeError, IndexError):
             pass
+    xkorig = xk.copy()
     if per:
         x0 = xk[0]
         x = (x - x0)%(xk[-1] - x0) + x0
     else:
-        xkorig = xk.copy()
         xmin, xmax = x.min(), x.max()
         if xmin < xk[0]:
             if lo:

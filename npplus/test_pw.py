@@ -213,6 +213,40 @@ class TestPwPoly(unittest.TestCase):
         self.assertTrue(np.allclose(self.xk, pw.xk) and
                         np.allclose(c2, pw.c), "spline multi failed")
 
+    def test_plfit(self):
+        """Check plfit."""
+        pw = nppw.pline(self.xk, self.yk)
+        x = np.r_[-1.:3.:100j]
+        p = nppw.plfit(self.xk, x, pw(x))
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(pw.c, p.c), "pline failed")
+        p = nppw.plfit(self.xk, x, pw(x), errs=0.01*(np.absolute(pw(x))+10.))
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(pw.c, p.c), "pline errs failed")
+        p = nppw.plfit(self.xk, x, pw(x), lo=1.,hi=5.)
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(pw.c, p.c), "pline hilo failed")
+        pwp = nppw.pline(self.xk, self.yk, per=1)
+        pp = nppw.plfit(self.xk, x, pwp(x), per=1)
+        self.assertTrue(np.allclose(pwp.xk, pp.xk) and
+                        np.allclose(pwp.c, pp.c), "pline per failed")
+        pw = nppw.pline(self.xk, self.yk, extrap=1)
+        p = nppw.plfit(self.xk, x, pw(x), extrap=1)
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(pw.c, p.c), "pline extrap failed")
+        pw = nppw.pline(self.xk, self.yk)
+        x = np.r_[-2.:3.5:100j]
+        p = nppw.plfit(self.xk, x, pw(x))
+        xk = np.concatenate(([-2.], pw.xk, [3.5]))
+        c = np.concatenate((pw.c[:,:1], pw.c, pw.c[:,-1:]), axis=1)
+        self.assertTrue(np.allclose(xk, p.xk) and
+                        np.allclose(c, p.c), "pline beyond failed")
+        x = np.r_[-1.:3.:100j]
+        p = nppw.plfit(self.xk, x, [pw(x),-pw(x)])
+        c = np.concatenate((pw.c[:,None], -pw.c[:,None]), axis=1)
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(c, p.c), "pline multi failed")
+
     def test_splfit(self):
         """Check splfit."""
 
