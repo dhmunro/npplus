@@ -1169,12 +1169,11 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     w = one / (sigy * sigy)  # chi2 weights
     rdxk = one / dxk
     x = (x - xk[ix])*rdxk[ix]
-    cco = _bico(n, nc).ravel()  # coefficients for constraint equations
     n1, n2, nc1 = 1+n, 2+n, 1+nc
     dxscl = dxk.reshape(nk1,1).repeat(n1,axis=1)
-    dxscl[0] = 1
-    dxscl = scale.cumprod(axis=1)
-    rat = roll(dxscl[:,:nc1], -1, axis=0) / dxscl[:,:nc1]
+    dxscl[:,0] = 1
+    dxscl = dxscl.cumprod(axis=1)
+    rat = dxscl[:,:nc1] / roll(dxscl[:,:nc1], -1, axis=0)
     ash0 = (n2, nk1, n2+nc)   # initial shape of lower diagonal form
     ash1 = (n2, (n2+nc)*nk1)  # final shape, before lo/hi constraints
     nhi, nlo = len(hi), len(lo)
@@ -1185,6 +1184,7 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
         zblo = zeros(nlo)
     # Need to loop here because matrix a potentially different for
     # each component of y due to differing sigy.
+    cco = _bico(n, nc).ravel()  # coefficients for constraint equations
     c = []
     for i, wi in enumerate(w):
         yi = y[i]
@@ -1201,12 +1201,13 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
                 wx *= x
         # build matrix a in symmetric lower diagonal form
         a = zeros(ash0)
-        for j in range(n2):
-            if j < n1:
-                a[j, :, 0:n1-j] = xp[:, j:n1+n-j:2]
+        for j in range(n1):
+            a[j, :, 0:n1-j] = xp[:, j:n1+n-j:2]
             if j:
-                a[j, :, n1-j:nc+n2-j] = cco[n1-j::n2]
-        a[nc1, :, n1:n2+nc] = -rat[:, 0:nc1]
+                cc = cco[n1-j:n1*j:n2]
+                a[j, :, n1-j:n1-j+cc.size] = cc
+        a[n1, :, :nc1] = 1
+        a[nc1, :, -nc1:] = -rat[:, 0:nc1]
         a = a.reshape(ash1)
         b = b.ravel()
         if not per:
@@ -1241,7 +1242,7 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     c = array(c)
     # The coefficients c include the Lagrange multipliers.  Disentangle.
     mask = zeros(ash0[1:], dtype=bool)
-    mask[:, :n2] = True  # mark the coefficients
+    mask[:, :n1] = True  # mark the coefficients
     mask = mask.reshape(ash1[1:])
     if nstrip:
         mask = mask[:-nstrip]
@@ -1259,6 +1260,7 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     if not per:
         c[extrap[0]+1:,...,0] = 0
         c[extrap[1]+1:,...,-1] = 0
+    c = c.reshape((n1,)+yshape+(nk1+2,))
     pwp = PerPwPoly.new(xk, c) if per else PwPoly.new(xk, c)
     if cost:
         if not per:
