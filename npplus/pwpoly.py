@@ -35,16 +35,17 @@ Piecewise polynomials may represent 1D curves in higher dimensions
 simply by providing y (and dydx, etc.) values with leading dimensions.
 """
 
+__all__ = ['PwPoly', 'PerPwPoly', 'spline', 'pline', 'splfit', 'plfit']
+
 from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
 from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
-from numpy import prod, cumprod, isclose, allclose, transpose, ones_like
+from numpy import prod, isclose, transpose, ones_like
 from numpy import bincount, array_equal, sort
 from numpy.linalg import inv, eigvals
-from scipy.linalg import solve_banded, solve, solveh_banded
+from scipy.linalg import solve_banded, solveh_banded
 
 from .solveper import solve_periodic, solves_periodic, solves_banded
-from .solveper import _diag_to_norm as d2n  # REMOVE ME!!!
 
 class PwPoly(object):
     """Piecewise polynomial function.
@@ -621,7 +622,7 @@ class PwPoly(object):
 
     # pickle and copy
     def __getstate__(self):
-        return {xk0: self.xk0.copy(), c: self.c.copy()}
+        return dict(xk0=self.xk0.copy(), c=self.c.copy())
     def __setstate__(self, d):
         self.xk0 = d['xk0']
         self.c = d['c']
@@ -976,13 +977,6 @@ def pline(x, y, extrap=None, per=False):
     linear function in the first and last intervals.
     """
     return spline(x, y, n=1, extrap=extrap, per=per)
-
-# Also expose these as static constuctor methods of the PwPoly class,
-# so that simply importing PwPoly (or having an instance) gives access.
-# Arguably, such constructors should be class methods, but this seems
-# straightforward enough.
-PwPoly.pline = staticmethod(pline)
-PwPoly.spline = staticmethod(spline)
 
 def _plfitter(adiag, asup, b, lo=None, hi=None, per=False, **kwargs):
     y = b.copy()

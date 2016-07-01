@@ -32,6 +32,7 @@ np.seterr(divide='raise', over='raise', invalid='raise')
 from .basic import *
 from .pwpoly import *
 from .pcwise import *
+from .lsqfit import *
 
 # implement deprecated execfile for python3
 if sys.version_info >= (3,0):

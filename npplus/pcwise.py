@@ -21,7 +21,9 @@ Defines `fun(x)` to be `funolo(x)` for `x<xa`, `funmid(x)` for `xa<=x<xb`,
 and `funhi(x)` for `xb<=x`.  Any number of domains is allowed.
 """
 
-import numpy as np
+__all__ = ['pcwise']
+
+from numpy import array, asarray, diff, zeros
 from functools import wraps
 
 def pcwise(f):
@@ -46,21 +48,21 @@ def pcwise(f):
     """
     fxtuple = f(None)
     funcs = fxtuple[0::2]
-    xvals = np.array(fxtuple[1::2])
+    xvals = array(fxtuple[1::2])
     if len(funcs) != len(xvals)+1:
         raise TypeError("@pcwise function must return "
                         "(f0,x1,...xN,fN) sequence.")
-    if xvals.size > 1 and (np.diff(xvals) <= 0).any():
+    if xvals.size > 1 and (diff(xvals) <= 0).any():
         raise TypeError("@pcwise function must return "
                         "(f0,x1,...xN,fN) sequence with increasing xI.")
     @wraps(f)
     def multif(x):
-        x = np.asarray(x)
+        x = asarray(x)
         s = x.shape
-        ialg = np.searchsorted(xvals, x)
+        ialg = xvals.searchsorted(x)
         if not s:
             return funcs[ialg](x)
-        result = np.zeros(s)
+        result = zeros(s)
         for mask, f in [(ialg==i, fi) for i, fi in enumerate(funcs)]:
             xm = x[mask]
             if xm.size:

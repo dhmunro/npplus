@@ -21,3 +21,8 @@ pcwise : a decorator function, alternative to numpy.piecewise
 solveper : periodic banded matrix solvers based on scipy solve_banded
 fermi : Fermi-Dirac integrals and inverses of orders -1/2, 1/2, 3/2, 5/2
 """
+
+from .basic import *
+from .pwpoly import *
+from .pcwise import *
+from .lsqfit import *

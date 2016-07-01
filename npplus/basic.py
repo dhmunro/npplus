@@ -25,8 +25,8 @@ if sys.version_info >= (3,0):
 else:
     from __builtin__ import xrange
 
-from numpy import array, asarray, asanyarray, asfarray, zeros, zeros_like
-from numpy import sign, log, absolute, log, exp, maximum, minimum, concatenate
+from numpy import array, asanyarray, asfarray, zeros, zeros_like
+from numpy import sign, absolute, log, exp, maximum, minimum, concatenate
 from numpy import arctan, arctan2, pi, result_type
 from numpy.linalg import norm
 

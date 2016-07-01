@@ -2,6 +2,20 @@
 # All rights reserved.
 # This is Open Source software, released under the BSD 2-clause license,
 # see http://opensource.org/licenses/BSD-2-Clause for details.
+"""Linear and non-linear least squares fitters.
+
+p = regress(data, mod0, mod1, mod2, ..., errs=errs)
+    returns p model coefficients for best linear fit to data of form
+        data ~ p[0]*mod0 + [1]*mod1 + p[2]*mod2 + ...
+    model=1 keyword returns more information, such as covariances
+
+model = levmar(data, f, p0, arg0, arg1, ..., errs=errs)
+    returns callable model with best fit to data of form
+        data ~ model(arg0, arg1, ...) = f(p, arg0, arg1, ...)
+    model.p are the best fit parameters, model.pcov their covariances
+"""
+
+__all__ = ['regress', 'levmar', 'LevmarError']
 
 from numpy import array, asfarray, zeros_like, absolute, maximum, zeros, ones
 from numpy import inner, ones_like, fill_diagonal, minimum, diag, sqrt, asarray
