@@ -266,6 +266,21 @@ class TestPwPoly(unittest.TestCase):
         p, cs = nppw.splfit(self.xk, x, pw(x), cost=1)
         self.assertTrue(np.allclose(np.zeros_like(cs), cs),
                         "splfit cost failed")
+        p = nppw.splfit(self.xk, x, pw(x), lo=(1,1),hi=(5,10))
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(pw.c, p.c), "splfit hilo failed")
+        p = nppw.splfit(self.xk, x, pw(x), lo=(2,0),hi=(4,1))
+        self.assertTrue(np.allclose(p.c[0:2,1],[2,0]) and
+                        np.allclose(p.c[0:2,-1], [4,1]),
+                        "splfit hilo failed 2")
+        pw = nppw.spline(self.xk, self.yk, per=1)
+        p, cs = nppw.splfit(self.xk, x, pw(x), cost=1, per=1)
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(pw.c, p.c), "splfit per failed")
+        p = nppw.splfit(self.xk, x, [pw(x),-pw(x)], per=1)
+        c = np.concatenate((pw.c[:,None], -pw.c[:,None]), axis=1)
+        self.assertTrue(np.allclose(pw.xk, p.xk) and
+                        np.allclose(c, p.c), "splfit multi failed")
 
 ############################################################################
 

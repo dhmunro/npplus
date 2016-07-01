@@ -1142,7 +1142,6 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     See Also
     --------
     plfit, spline, pline, PwPoly
-
     """
     # There is a degree-n B-spline algorithm analogous to the degree-1
     # algorithm used in plfit.  The direct matrix solve here is far
@@ -1276,11 +1275,10 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
             costh = costh.reshape((nhi,)+yshape)
             cost = tuple(cost) + tuple(costl) + tuple(costh)
         else:
-            cost = cost.reshape(ny, nk1+1, nc1)
-            cost[:,:-1] *= dxscl
-            cost[:,-1] *= dxscl[0]
+            cost = cc.reshape(ny, nk1, nc1)
+            cost *= roll(dxscl[:,:nc1], -1, axis=0)
             cost = transpose(cost, (2,0,1)).copy().reshape((nc1,)+yshape
-                                                           +(nk1+1,))
+                                                           +(nk1,))
             cost = tuple(cost)
         return pwp, cost
     return pwp
