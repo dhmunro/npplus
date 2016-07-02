@@ -47,7 +47,7 @@ def pcwise(f):
     ValueError with that string for any points in that range.
     """
     fxtuple = f(None)
-    funcs = fxtuple[0::2]
+    funcs = list(fxtuple[0::2])
     xvals = array(fxtuple[1::2])
     if len(funcs) != len(xvals)+1:
         raise TypeError("@pcwise function must return "
@@ -55,6 +55,14 @@ def pcwise(f):
     if xvals.size > 1 and (diff(xvals) <= 0).any():
         raise TypeError("@pcwise function must return "
                         "(f0,x1,...xN,fN) sequence with increasing xI.")
+    for i, fn in enumerate(funcs):
+        try:
+            _ = fn + ''
+        except TypeError:
+            pass
+        else:  # replace string by function that raises ValueError(fn)
+            funcs[i] = _value_error_func(fn)
+    funcs = tuple(funcs)
     @wraps(f)
     def multif(x):
         x = asarray(x)
@@ -70,31 +78,7 @@ def pcwise(f):
         return result
     return multif
 
-# Example:
-#
-#from numpy.polynomial import Polynomial
-#
-#@pcwise
-#def bessj0(x):
-#    """Bessel function J0(x)."""
-#    pnum = Polynomial([57568490574.0, -13362590354.0, 651619640.7,
-#                       -11214424.18, 77392.33017, -184.9052456])
-#    pden = Polynomial([57568490411.0, 1029532985.0, 9494680.718,
-#                       59272.64853, 267.8532712, 1.0])
-#    def fsmall(x):
-#        y = x*x
-#        return pnum(y) / pden(y)
-#
-#    pcos = Polynomial([1.0, -0.1098628627e-2, 0.2734510407e-4,
-#                       -0.2073370639e-5, 0.2093887211e-6])
-#    psin = Polynomial([ -0.1562499995e-1, 0.1430488765e-3, -0.6911147651e-5,
-#                         0.7621095161e-6, -0.934935152e-7])
-#    def fbig(x):
-#        ax = abs(x)
-#        z = 8.0/ax
-#        y = z*z
-#        x = ax - 0.785398164 # pi/4, rounded incorrectly
-#        return np.sqrt(0.636619772/ax) * (np.cos(x)*pcos(y)
-#                                          - np.sin(x)*z*psin(y))
-#
-#    return (fbig, -8.0, fsmall, 8.0, fbig)
+def _value_error_func(msg):
+    def raise_value_error(x):
+        raise ValueError(msg)
+    return raise_value_error
