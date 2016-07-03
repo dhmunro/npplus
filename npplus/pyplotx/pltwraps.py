@@ -29,7 +29,6 @@ __all__ = ['annotate', 'axhline', 'axhspan', 'axvline', 'axvspan',
            'suptitle', 'text', 'title', 'tricontour', 'tricontourf',
            'tripcolor', 'triplot', 'vlines', 'xlabel',
            'xlim', 'ylabel', 'ylim']
-__all__ += ['xylim', 'logxy']  # defined here
 
 from functools import wraps as _wraps
 import matplotlib.pyplot as plt  # name plt cannot appear in __all__ list
@@ -75,3 +74,6 @@ def logxy(islog=None, islogy=Ellipsis):
         islogy = islog
     if islogy is not None:
         plt.yscale('log' if islogy else 'linear')
+
+
+__all__ += ['xylim', 'logxy']  # defined here
