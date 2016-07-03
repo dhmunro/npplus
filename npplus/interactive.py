@@ -11,7 +11,8 @@ similar interactive.py modules in other packages.
 """
 
 # sys and os too common to have to import them
-import sys, os
+import sys
+import os
 
 # duplicate the pylab numpy imports for interactive use
 import numpy as np
@@ -35,17 +36,19 @@ from .pcwise import *
 from .lsqfit import *
 
 # implement deprecated execfile for python3
-if sys.version_info >= (3,0):
-    if sys.version_info >= (3,4):
+if sys.version_info >= (3,):
+    if sys.version_info >= (3, 4):
         from importlib import reload
     else:
         from imp import reload
+
     def execfile(*args):
         """python2 execfile -- avoid this, write modules and use import."""
-        name, args = args[0], args[1:] if len(args)>1 else (globals(),)
+        name, args = args[0], args[1:] if len(args) > 1 else (globals(),)
         with open(name) as f:
             code = compile(f.read(), name, 'exec')
             eval("exec(code, *args)")  # evade syntax error in python2
+
 
 # implement extended reload for development reloadx-pdb-edit cycle
 def reloadx(module):

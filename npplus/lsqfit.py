@@ -4,15 +4,19 @@
 # see http://opensource.org/licenses/BSD-2-Clause for details.
 """Linear and non-linear least squares fitters.
 
-p = regress(data, mod0, mod1, mod2, ..., errs=errs)
+``p = regress(data, mod0, mod1, mod2, ..., errs=errs)``
     returns p model coefficients for best linear fit to data of form
-        data ~ p[0]*mod0 + [1]*mod1 + p[2]*mod2 + ...
-    model=1 keyword returns more information, such as covariances
 
-model = levmar(data, f, p0, arg0, arg1, ..., errs=errs)
+        ``data ~ p[0]*mod0 + [1]*mod1 + p[2]*mod2 + ...``
+
+    ``model=1`` keyword returns more information, such as covariances.
+
+``model = levmar(data, f, p0, arg0, arg1, ..., errs=errs)``
     returns callable model with best fit to data of form
-        data ~ model(arg0, arg1, ...) = f(p, arg0, arg1, ...)
-    model.p are the best fit parameters, model.pcov their covariances
+
+        ``data ~ model(arg0, arg1, ...) = f(p, arg0, arg1, ...)``
+
+    ``model.p`` are the best fit parameters, ``model.pcov`` their covariances.
 """
 
 __all__ = ['regress', 'levmar', 'LevmarError']
@@ -24,12 +28,13 @@ from scipy.linalg import svd
 from scipy.special import gammaincc
 from inspect import isgeneratorfunction
 
+
 def regress(data, *mdl, **kwargs):
     """Least squares fit a linear model to data.
 
-        p = regress(data, m1, m2, m3, ...)
+        ``p = regress(data, m1, m2, m3, ...)``
 
-    finds 1D array of coefficients p such that
+    finds 1D array of coefficients p such that::
 
         einsum('i,i...', p, [m1, m2, m3, ...])   approximates   data
         or simply p.dot([m1, m2, m3, ...]) if data is 1D
@@ -37,7 +42,7 @@ def regress(data, *mdl, **kwargs):
     as nearly as possible in a least squares sense.  You can use regress
     in underdetermined systems, that is, with more coefficients than
     data points, in which case it returns the exact solution p with
-    the smallest Euclidean norm in p-space.  The model=1 statistics will
+    the smallest Euclidean norm in p-space.  The ``model=1`` statistics will
     not be useful in this case.
 
     Parameters
@@ -45,34 +50,37 @@ def regress(data, *mdl, **kwargs):
     data : array_like
         The data to be fit.
     m1, m2, m3, ... : array_like
-        Each of the m_i must be conformable with data, representing
+        Each of the `mi` must be conformable with data, representing
         a particular component of the linear model to explain the data.
 
     Keyword Parameters
     ------------------
-    errs : array_like, default 1.0
+    errs : array_like
         If provided, must be conformable with data, representing the
-        standard deviation of each data point.
-    model : bool, default false
-        If not provided or false, only the coefficients p are returned,
-        that is, regress has only a single return value.
-    rcond : float, default 1.e-9
-        Reciprocal condition number.  Often the data do no permit a
-        definitive choice of model -- entire p-subspaces may produce
-        indistinguishably good fits to the data, which makes the least
-        squares matrix singular.  The rcond parameter determines how
-        small a singular value you are willing to consider relative
-        to the largest singular value.  Directions with smaller singular
-        values are ignored when inverting the matrix.
+        standard deviation of each data point, default 1.
+    model : bool
+        If not provided or false, the return value is the coefficients `p`.
+        If true, the return value is a ModelFit instance.
+    rcond : float
+        Reciprocal condition number, default 1e-9.  Often the data do
+        no permit a definitive choice of model -- entire p-subspaces
+        may produce indistinguishably good fits to the data, which
+        makes the least squares matrix singular.  The rcond parameter
+        determines how small a singular value you are willing to
+        consider relative to the largest singular value.  Directions
+        with smaller singular values are ignored when inverting the
+        matrix.
 
     Returns
     -------
-    p or model : 1D ndarray or ModelFit
-        The p are coefficients of the best fit model.  The length and
-        order of p corresponds to the number and order of m_i arguments.
-        If the model keyword is not present or false.  If the model
-        keyword is true, regress returns a ModelFit object with the
-        many attributes and methods, including:
+    p : ndarray or ModelFit
+        If the model parameter is not provided or false, `p` are
+        coefficients of the best fit model.  The length and order of `p`
+        corresponds to the number and order of `mi` arguments.
+
+        If the model keyword is true, regress returns a ModelFit
+        object with many attributes and methods, including::
+
             model.p --> the model coefficients (the model=0 return)
             model.pcov --> covariances of p
             model.chi2 --> chi squared per degree of freedom
@@ -82,17 +90,21 @@ def regress(data, *mdl, **kwargs):
             model.u --> u[i] is unit vector in p-space corresponding to s[i]
             model() --> data produced by best fit model
 
-    Examples
+    See Also
     --------
+    regress : linear least squares fitter
+    ModelFit : class for best fit models
 
+    Notes
+    -----
     The best fit polynomial of degree three has coefficients:
 
-        p = regress(y, 1., x, x**2, x**3)
+        ``p = regress(y, 1., x, x**2, x**3)``
 
-    To find the best fit to a set of data points (x,y) by any function
-    of the form (a + b*x + c*exp(-x**2)*cos(x)):
+    To find the best fit to a set of data points ``(x,y)`` by any function
+    of the form ``(a + b*x + c*exp(-x**2)*cos(x))``:
 
-        p = regress(y, 1., x, exp(-x**2)*cos(x))
+        ``p = regress(y, 1., x, exp(-x**2)*cos(x))``
     """
     data = asfarray(data)
     nc = len(mdl)
@@ -126,90 +138,105 @@ def regress(data, *mdl, **kwargs):
     chi2 = fit - b
     chi2 = (chi2*chi2).sum() / maximum(ndof, 1.)
     fit /= rstdev
+
     def f(p):
         return fit
+
     pc = inner(pc, pc)
     return ModelFit(f, p, pc, chi2, ndof, u=u, s=s,
                     info=dict(src='regress'))
 
+
 def levmar(data, f, p0, *args, **kwargs):
     """Least squares fit a non-linear model to data.
 
-        model = levmar(data, f, p0, x)
+        ``model = levmar(data, f, p0, x)``
 
-    is the function f(p, x) for the particular parameters p such that
+    is the function ``f(p, x)`` for the particular parameters `p` such that
 
-        model(x)   approximates   data
+        ``model(x)``   approximates   `data`
 
-    as nearly as possible in a least squares sense.  The model function
-    has attributes you can use to retrieve the best fit parameter values,
-    convariances, and other information about the fit.
+    as nearly as possible in a least squares sense.  The model object
+    has attributes you can use to retrieve the best fit parameter
+    values, convariances, and other information about the fit.
 
-    If you can calculate the partial derivatives of f with respect to p,
-    you should write f as a generator function with two yield statements.
-    The first yield statement must return the function value, while the
-    second and final yield must return the partial derivatives dfdp.  The
-    shape of dfdp must match those of f, which is the shape of data, plus
-    a leading axis with the size and order of the parameter vector p.
+    If you can calculate the partial derivatives of `f` with respect
+    to `p`, you should write `f` as a generator function with two
+    yield statements.  The first yield statement must return the
+    function value, while the second and final yield must return the
+    partial derivatives `dfdp`.  The shape of `dfdp` must match those
+    of `f`, which is the shape of data, plus a leading axis with the
+    size and order of the parameter vector `p`.
 
-    If f is not a generator function, levmar will estimate its partial
-    derivatives using finite differences.  You may need to provide prel
-    and pabs keywords to get appropriate step sizes for the finite
+    If `f` is not a generator function, levmar will estimate its partial
+    derivatives using finite differences.  You may need to provide `prel`
+    and `pabs` keywords to get appropriate step sizes for the finite
     differences of your parameters.
 
     Parameters
     ----------
     data : array_like
         The data to be fit.
-    f : function or two-result generator function
-        A parametric function f(p, a1, a2, ..., k1=k1, k2=k2, ...)
-        representing the model for the data.  The first argument to f
-        must be a 1D array of parameters.  Any remaining positional
-        or keyword arguments to f represent the independent variables
-        of the model.  The result of f must have the same dimensions
-        as data.  f may also be a generator function with two yield
-        statements returning dfdp on the second as described above.
-    p0 : 1D array_like
-        The initial guess for the parameters p needed to fit data.
-    a1, a2, ... : arbitrary
-        The model function f may have any number of postional
-        arguments beyond its first argument p; any additional
-        positional arguments to levmar will be passed unexamined to
-        every call of f.
 
-    Keyword Parameters
-    ------------------
-    errs : array_like, default 1.0
-        If provided, must be conformable with data, representing the
-        standard deviation of each data point.
-    pfix : int array_like
-        An index or indices into p which are to remain fixed at their
-        values in p0.
+    f : function or generator function
+        A parametric function ``f(p, a1, a2, ..., k1=k1, k2=k2, ...)``
+        representing the model for the data.  The first argument to `f`
+        must be a 1D array of parameters.  Any remaining positional
+        or keyword arguments to `f` represent the independent variables
+        of the model.  The result of `f` must have the same dimensions
+        as data.
+
+        `f` may also be a generator function with two yield statements
+        returning `dfdp` on the second as described above.
+
+    p0 : array_like
+        The initial guess for the 1D parameters `p` needed to fit data.
+
+    a1, a2, ... : arbitrary
+        The model function `f` may have any number of postional
+        arguments beyond its first argument `p`; any additional
+        positional arguments to levmar will be passed unexamined to
+        every call of `f`.
+
+    errs : array_like
+        If provided, must be conformable with `data`, representing the
+        standard deviation of each data point, default 1.
+
+    pfix : int or sequence of int
+        An index or indices into `p` which are to remain fixed at their
+        values in `p0`.
+
     pmin, pmax : array_like
-        Minimum and maximum bounds for p.  If provided, must be
-        conformable with p.  The function f will not be called with p
-        values outside these bounds.
-    prel, pabs : array_like, defaults 1.e-6 and 1.e-9
+        Minimum and maximum bounds for `p`.  If provided, must be
+        conformable with `p`.  The function `f` will not be called with
+        `p` values outside these bounds.
+
+    prel, pabs : array_like
         Relative and absolute step sizes for computing finite difference
-        partial derivatives of f.  These must be conformable with p.
-        The step size is maximum(prel*absolute(p), pabs).
-        If f is a generator, these are ignored.
+        partial derivatives of `f`.  These must be conformable with `p`.
+        The step size is ``maximum(prel*absolute(p), pabs)``.  The
+        default values are ``prel=1.e-6`` and ``pabs=1.e-9``.
+
+        If `f` is a generator, these are ignored.
+
     cfg : dict
         Configuration options for levmar, overriding the default options
-        in levmar.config.  
-    quiet : bool, default False
-        If levmar exceeds levmar.config.itmax iterations, indicating a
-        failure to converge, it prints a warning message unless this
+        in ``levmar.config``.
+
+    quiet : bool
+        If levmar exceeds ``levmar.config.itmax`` iterations, indicating
+        a failure to converge, it prints a warning message unless this
         keyword is present and True.
-    k1, k2, ... : arbitrary
+
+    k1=k1, k2=k2, ... : arbitrary
         Any other keyword arguments are passed unexamined to every call
-        of f.
+        of `f`.
 
     Returns
     -------
     model : ModelFit
         The best fit model for the data.  This callable object will
-        invoke f with the best fit parameters, as well as permitting you
+        invoke `f` with the best fit parameters, as well as permitting you
         to inspect the parameter values themselves, their covariances, and
         other information about the fit.
 
@@ -217,6 +244,7 @@ def levmar(data, f, p0, *args, **kwargs):
     ----------
     config : dict
         Options to control the Levenberg-Marquardt algorithm:
+
             itmax = maximum number of gradient recalculations (100)
             tol = tolerance, stop when chi2 changes by less than to (1.e-7)
             lambda0 = initial value of L-M lambda parameter (0.001)
@@ -224,9 +252,20 @@ def levmar(data, f, p0, *args, **kwargs):
             gain = factor by which to change lambda (10.)
             prel = relative step size for numerical_partials (1.e-6)
             pabs = absolute step size for numerical_partials (1.e-9)
-        You may set levmar.config to change the default settings, or
-        use the cfg= keyword to change any subset for a single call.
 
+        You may set ``levmar.config`` to change the default settings, or
+        use the `cfg` keyword to change any subset for a single call.
+
+    See Also
+    --------
+    regress : linear least squares fitter
+    ModelFit : class for best fit models
+
+    Notes
+    -----
+    You should scale the `p` values so that their values will not be
+    very large or small.  This prevents problems with ill-conditioned
+    partial derivative matrices.
     """
     data, p0 = asfarray(data), asfarray(p0)
     errs = kwargs.pop('errs', 1.0) + zeros_like(data)
@@ -240,8 +279,10 @@ def levmar(data, f, p0, *args, **kwargs):
     quiet = kwargs.pop('quiet', False)
     isgenf = isgeneratorfunction(f)
     if not isgenf:
-        if prel is None: prel = cfg['prel']
-        if pabs is None: pabs = cfg['pabs']
+        if prel is None:
+            prel = cfg['prel']
+        if pabs is None:
+            pabs = cfg['pabs']
     z = zeros_like(p0)
     pmin, pmax, prel, pabs = [(p if p is None else z+p) for p in
                               (pmin, pmax, prel, pabs)]
@@ -331,9 +372,9 @@ def levmar(data, f, p0, *args, **kwargs):
     chi20 /= ndof
     chi2 /= ndof
     pfull[pmask] = p
-    pc = zeros((p.size,pfull.size), dtype=p.dtype)
-    pc[:,pmask] = inv(alpha)
-    pcov = zeros((pfull.size,pfull.size), dtype=p.dtype)
+    pc = zeros((p.size, pfull.size), dtype=p.dtype)
+    pc[:, pmask] = inv(alpha)
+    pcov = zeros((pfull.size, pfull.size), dtype=p.dtype)
     pcov[pmask] = pc
     cfg.update(src='levmar', niter=niter, neval=neval, p0=p0, chi20=chi20,
                lamda=lamda)
@@ -344,59 +385,61 @@ def levmar(data, f, p0, *args, **kwargs):
 levmar.config = dict(itmax=100, tol=1.e-7, lambda0=0.001, lambdax=1.e12,
                      gain=10., prel=1.e-6, pabs=1.e-9)
 
+
 class LevmarError(ValueError):
     """Levenberg-Marquardt algorithm lambda runaway, a kind of ValueError."""
+
 
 class ModelFit(object):
     """Best fit model of a parametrized family of models.
 
+    If `model` is a ModelFit instance for a parametrized function
+    ``f(p, a1, a2, ...)``, then ``model(a1, a2, ...)`` is the function
+    with `p` set to the fit values, while ``model.p`` are the parameters
+    themselves.
+
     Attributes
     ----------
-    f : function or two-result generator function
+    f : function or generator function
         The family of parameterized models.
     p : 1D ndarray
         The best fit parameters.
     pcov : 2D ndarray
-        Covariances of p.  Note that these scale as errs**2,the specified
+        Covariances of `p`.  Note that these scale as ``errs**2``,the specified
         errors in the data.  If no errs were provided for the data,
-        these covariances are relative; see chi2pcov below.
+        these covariances are relative; see `chi2pcov` below.
     chi2 : float
-        The chi2 per degree of freedom of the best fit to the data.
-        Again, this scales as 1/errs**2.
+        The `chi2` per degree of freedom of the best fit to the data.
+        Again, this scales as ``1/errs**2``.
     ndof : int
         The number of degrees of freedom in the fit (number of data points
         minus number of free parameters).
     isgenf : bool
-        True if f is a generator function, else False.
+        True if `f` is a generator function, else False.
     info : dict
         More detailed information about the fit, such as the function that
         did it and how it was configured, the number of iterations, the
-        initial guess and corresponding chi2, etc.
+        initial guess and corresponding `chi2`, etc.
 
     Properties
     ----------
-    perr : 1D ndarray
-        Standard deviations of p, that is, square root of the diagonal
-        of pcov.
-    chi2pcov : 2D ndarray
+    perr : ndarray
+        Standard deviations of `p`, that is, square root of the diagonal
+        of `pcov`.
+    chi2pcov : ndarray
         Covariances estimated from the quality of this fit, assuming that
         no errs were provided to go with the data.  This amount to assuming
-        that the chi2 per degree of freedom of the fit is 1.0, and scaling
-        errs retroactively to make that true.  Every statistical package
+        that the `chi2` per degree of freedom of the fit is 1.0, and scaling
+        `errs` retroactively to make that true.  Every statistical package
         provides this but warns against taking it too seriously.
-    chiperr : 1D ndarray
+    chiperr : ndarray
         Standard deviations of p estimated from the quality of this fit,
-        the square root of the diagonal of chi2pcov.
+        the square root of the diagonal of `chi2pcov`.
 
-    Methods
-    -------
-    __call__(*args, **kwargs) :
-        Return model evaluated with given arguments, equal to
-            f(p, *args, **kwargs)
-        with p set to the best fit parameters.
-    chi2prob(chi2) :
-        Complementary cumulative chi2 probability distribution for ndof.
-        You can use this to assess the quality of fit.
+    See Also
+    --------
+    levmar : non-linear least squares fitter
+    regress : linear least squares fitter
     """
     def __init__(self, f, p, pcov=None, chi2=None, ndof=None, isgenf=None,
                  info=None, **kw):
@@ -418,39 +461,60 @@ class ModelFit(object):
         self.info = info
         # any other keywords simply become attributes
         self.__dict__.update(kw)
+
     def __call__(self, *args, **kwargs):
-        """best fit model function"""
+        """Model function, with parameter argument set to best fit values.
+
+        Parameters
+        ----------
+        a1, a2, ... : arbitrary
+        k1=k1, k2=k2, ... : arbitrary
+            Non-parameter arguments of the parametrized function
+            ``f(p, a1, a2, ..., k1=k1, k2=k2, ...)``
+
+        Results
+        -------
+        ndarray
+            The function value ``f(p, a1, a2, ..., k1=k1, k2=k2, ...)``
+            with `p` set to the best fit parameters.
+        """
         return self._f(*args, **kwargs)
+
     @property
     def perr(self):
-        """standard deviations of parameters"""
+        """Standard deviations of parameters."""
         return sqrt(diag(self.pcov))
+
     @property
     def chi2pcov(self):
-        """covariance of parameters, errors estimated from quality of fit"""
+        """Covariance of parameters, errors estimated from quality of fit."""
         return self.chi2 * self.pcov
+
     @property
     def chiperr(self):
-        """std deviations of params, errors estimated from quality of fit"""
+        """Std deviations of params, errors estimated from quality of fit."""
         return sqrt(diag(self.chi2pcov))
+
     def chi2prob(self, chi2=None):
-        """probability that chi2/ndof is greater than specified value
+        """Probability that chi2 per dof is greater than specified value.
 
         Parameters
         ----------
         chi2 : array_like, optional
             Chi square per degree of freedom.  If not specified, will use
-            self.chi2.  Note that this is chi2 *per degree of freedom*.
+            ``self.chi2``.  Note that this is `chi2` *per degree of freedom*.
 
         Results
         -------
         prob : ndarray
-            Probability that chi2 of fit will be greater than given chi2.
+            Probability that `chi2` of fit will be greater than given `chi2`.
         """
-        if chi2 is None: chi2 = self.chi2
+        if chi2 is None:
+            chi2 = self.chi2
         chi2 = asfarray(chi2)
         hndof = 0.5 * self.ndof
         return gammaincc(hndof, hndof*chi2)
+
 
 def numerical_partials(f, p, f0=None, pmin=None, pmax=None, prel=1.e-6,
                        pabs=1.e-9, pmask=None, args=(), kwargs=None):

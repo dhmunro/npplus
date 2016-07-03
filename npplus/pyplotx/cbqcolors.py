@@ -12,6 +12,7 @@ except ImportError:
     cycler = lambda x, y: y
     cyc_name = 'color_cycle'
 
+
 class CBQ(object):
     """Container for Color Brewer qualitative color sets.
 
@@ -26,7 +27,7 @@ class CBQ(object):
     set3                    12 colors
     accent                   8 colors
     paired                  12 colors
- 
+
     set1 darkest, most saturated
     dark2 next darkest, less saturated
     accent 4 lighter colors followed by 4 darker colors

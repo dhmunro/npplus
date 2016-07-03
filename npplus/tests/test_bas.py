@@ -1,7 +1,6 @@
 import unittest
 import numpy as np
 
-import npplus as npp
 import npplus.basic as yl
 
 import __main__

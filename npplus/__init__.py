@@ -6,20 +6,25 @@
 
 Modules
 -------
-interactive : make npplus available (for PYTHONSTARTUP files)
-pyplotx.interactive : interactive+pylab, including plwraps
-pyplotx.plwraps : wrappers for pyplot APIs to improve usability
-
-basic : basic APIs, many inspired by yorick
-    a_, cat_ : broadcasting versions of hstack and concatenate
-    span, spanl, max_, min_, abs_, atan : more flexible than numpy versions
-    cum, zcen, pcen : rank preserving axis methods to supplement numpy.diff
-
-pwpoly : piecewise polynomial interpolation and fitting
-lsqfit : linear and non-linear least squares fits of data to models
-pcwise : a decorator function, alternative to numpy.piecewise
-solveper : periodic banded matrix solvers based on scipy solve_banded
-fermi : Fermi-Dirac integrals and inverses of orders -1/2, 1/2, 3/2, 5/2
+basic :
+    Basic APIs, many inspired by yorick.
+pwpoly :
+    Piecewise polynomial interpolation and fitting.
+lsqfit :
+    Linear and non-linear least squares fits of data to models.
+pcwise :
+    A decorator function, alternative to numpy.piecewise.
+solveper :
+    Periodic banded matrix variants of scipy.linalg.solve_banded.
+fermi :
+    Fermi-Dirac integrals and inverses.
+pyplotx :
+    Package providing mpl-2 colormaps viridis, etc., and nice plot style.
+interactive :
+    Make npplus and numpy available (for PYTHONSTARTUP files).  Also provides
+    `reloadx` function to simplify interactive debugging workflow.
+pyplotx.interactive :
+    Interactive+pyplot plus quiet plotting function wrappers and ``ion()``.
 """
 
 from .basic import *

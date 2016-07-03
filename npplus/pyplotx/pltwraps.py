@@ -27,26 +27,34 @@ __all__ = ['annotate', 'axhline', 'axhspan', 'axvline', 'axvspan',
            'pcolormesh', 'pie', 'plot', 'plot_date', 'quiver',
            'scatter', 'stem', 'step', 'streamplot', 'subplot',
            'suptitle', 'text', 'title', 'tricontour', 'tricontourf',
-           'tripcolor', 'triplot', 'violinplot', 'vlines', 'xlabel',
+           'tripcolor', 'triplot', 'vlines', 'xlabel',
            'xlim', 'ylabel', 'ylim']
-# later append: 'xylim', 'logxy'
+__all__ += ['xylim', 'logxy']  # defined here
 
 from functools import wraps as _wraps
 import matplotlib.pyplot as plt  # name plt cannot appear in __all__ list
 
+if hasattr(plt, 'violinplot'):
+    __all__ += ['violinplot']
+
+
 def _iwrap(name):
     f = getattr(plt, name)
+
     @_wraps(f)
     def iwrapped(*args, **kwargs):
         f(*args, **kwargs)
+
     globals()[name] = iwrapped
 
 for _ in __all__:
     _iwrap(_)
 
+
 def xylim():
     """Set xmin, xmax, ymin, ymax limits for the current axes, return None."""
     plt.axis()
+
 
 def logxy(islog=None, islogy=Ellipsis):
     """Alternative to xscale, yscale for setting log or linear axes.
@@ -67,5 +75,3 @@ def logxy(islog=None, islogy=Ellipsis):
         islogy = islog
     if islogy is not None:
         plt.yscale('log' if islogy else 'linear')
-
-__all__ += ['xylim', 'logxy']

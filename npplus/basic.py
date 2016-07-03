@@ -2,57 +2,75 @@
 # All rights reserved.
 # This is Open Source software, released under the BSD 2-clause license,
 # see http://opensource.org/licenses/BSD-2-Clause for details.
-"""Yorick-like APIs with no good numpy equivalent
+"""Enhancements for basic numpy functionality.
 
-spanl(start, stop, num)   returns log-spaced points
-max_(a, b, c, ...)   elementwise max with any number of args
-min_(a, b, c, ...)   elementwise min with any number of args
-abs_(a, b, c, ...)   elementwise linalg.norm with any number of args
-atan(a [,b])         combined one or two argument atan
-cum(x, axis=)        cumsum with prepended 0
-zcen(x, axis=)       pairwise averages, like diff (pairwise differences)
-pcen(x, axis=)       zcen, but copy endpoints
+Enhancements fall into several categories:
 
-Also provides xrange as a synonym for xrange in python 3, like six.
+1. Array building.  Provides ``a_(a1, a2, ...)`` and ``cat_(a1, a2, ...)``,
+   like ``array([a1, a2, ...])`` and ``concatenate((a1, a2, ...))`` except
+   that the arguments are broadcst to the required shapes if needed.
+   Provides ``span(a,b,n)`` and ``spanl(a,b,n)`` like ``linspace(a,b,n)``
+   and ``logspace(log10(a),log10(b),n)``, except that ``a`` and ``b``
+   may be points in multidimensional space.  All npplus array building
+   functions accept the ``axis=`` keyword.
+
+2. Finite difference axis methods ``zcen``, ``cum``, and ``pcen`` to
+   to supplement the ``cumsum``, ``cumprod``, and ``diff`` functions in
+   numpy.  For example, ``cum(zcen(y)*diff(x))`` is the finite difference
+   analog of the indefinite integral of y dx.
+
+3. Redefine the ``range`` function in python 2 to be ``xrange`` so that
+   it works the same as in python 3.  The python 3 way is a better choice,
+   especially since numpy provides the ``arange`` function.
+
+4. Provide multiple argument elementwise ``min_`` and ``max_`` functions.
+   Also provide a multiple argument ``abs_`` function that gives Euclidean
+   distance in multdimensional space, and expose the numpy ``norm``.
+
+5. Combine the one and two argument arctan in a single ``atan`` function.
+   In two argument mode, provides for branch cut at any angle.
+   Note that ``abs_(y,x)`` and ``atan(y,x)`` work well together.
 """
 
 __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
-           'cum', 'zcen', 'pcen', 'xrange']
+           'cum', 'zcen', 'pcen', 'range', 'norm']
 
 import sys
-if sys.version_info >= (3,0):
-    xrange = range
-else:
-    from __builtin__ import xrange
+if sys.version_info < (3,):
+    range = xrange
 
 from numpy import array, asanyarray, asfarray, zeros, zeros_like
 from numpy import sign, absolute, log, exp, maximum, minimum, concatenate
 from numpy import arctan, arctan2, pi, result_type
 from numpy.linalg import norm
 
+
 def span(start, stop, num=100, axis=0, dtype=None):
     """Return numbers with equal spacing between start and stop.
 
     Parameters
     ----------
-    start : array_like
-    stop : array_like, conformable with start
-    num : int, optional (default 100)
+    start, stop : array_like
+        Shapes must be conformable but need not match exactly.
+    num : int, optional
+        Number of points in result.
     axis : int, optional
         If start and stop are not scalars, the position of the new axis
-        in the result (first by default).
+        in the result (default 0).
     dtype : dtype, optional
-        Type of output array, default infers from start and stop.
+        Type of output array, by default infer from start and stop.
 
     Returns
     -------
     samples : ndarray
         samples[0] == `start`, samples[num-1] == `stop`,
-        with equal ratios between successive intervening values
+        with equal differences between successive intervening values
 
     See Also
     --------
-    spanl, linspace, arange, logspace
+    spanl : equal ratio (log) spacing
+    np.linspace : standard numpy function
+    np.arange : standard numpy function
     """
     start, stop = asfarray(start), asfarray(stop)
     shape = zeros_like(start + stop)
@@ -64,11 +82,12 @@ def span(start, stop, num=100, axis=0, dtype=None):
     start, stop = start.reshape(shape), stop.reshape(shape)
     s = start.repeat(num, axis=axis)
     ds = ((stop-start)/(num-1)).repeat(num-1, axis=axis)
-    shape = (slice(None),)*axis + (slice(1,None),)
+    shape = (slice(None),)*axis + (slice(1, None),)
     s[shape] += ds.cumsum(axis=axis)
-    shape = shape[:axis] + (slice(-1,None),)
+    shape = shape[:axis] + (slice(-1, None),)
     s[shape] = stop   # eliminate roundoff error from final point
     return s.astype(dtype) if dtype else s
+
 
 def spanl(start, stop, num=100, axis=0, dtype=None):
     """Return numbers with equal ratios (log spaced) between start and stop.
@@ -78,14 +97,15 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
 
     Parameters
     ----------
-    start : array_like
-    stop : array_like, conformable with start
-    num : int, optional (default 100)
+    start, stop : array_like
+        Shapes must be conformable but need not match exactly.
+    num : int, optional
+        Number of points in result.
     axis : int, optional
         If start and stop are not scalars, the position of the new axis
-        in the result (first by default).
+        in the result (default 0).
     dtype : dtype, optional
-        Type of output array, default infers from start and stop.
+        Type of output array, by default infer from start and stop.
 
     Returns
     -------
@@ -95,7 +115,8 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
 
     See Also
     --------
-    span, logspace, linspace, arange
+    span : equal difference (linear) spacing
+    np.logspace : standard numpy function
     """
     start, stop = asfarray(start), asfarray(stop)
     s, start = sign(start), absolute(start)
@@ -110,8 +131,9 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
     s = s * exp(span(log(start), log(stop), num, axis))
     return s.astype(dtype) if dtype else s
 
+
 def cat_(*args, **kwargs):
-    """concatenate arrays on one axis
+    """Concatenate arrays on one axis.
 
     This is like np.concatenate, except that the input arrays are passed
     as multiple arguments rather than as a sequence in one argument, and,
@@ -123,10 +145,7 @@ def cat_(*args, **kwargs):
     a1, a2, ... : array_like
         The arrays to be joined.  The arrays will be broadcast to a common
         shape over all axes except the one being joined.
-
-    Keywords
-    --------
-    axis : int, optional
+    axis : int, optional keyword
         The axis along which to join the arrays, by default axis=0, meaning
         the first axis of the input with the maximum number of dimensions.
 
@@ -146,27 +165,28 @@ def cat_(*args, **kwargs):
         dtype = t if dtype is None else result_type(dtype, t)
         ndim = max(ndim, a.ndim)
         alist.append(a)
-    if ndim < 1: ndim = 1
-    if axis<-ndim or axis>=ndim:
+    if ndim < 1:
+        ndim = 1
+    if axis < -ndim or axis >= ndim:
         raise ValueError("axis keyword is out of bounds")
     shape = array([(1,)*(ndim-a.ndim)+a.shape for a in alist])
-    lens = shape[:,axis].copy()
-    shape[:,axis] = lens.sum()
+    lens = shape[:, axis].copy()
+    shape[:, axis] = lens.sum()
     result = zeros(shape.max(axis=0), dtype=dtype)
     i, leading = 0, ((slice(None),)*ndim)[:axis]
     for di, a in zip(lens, alist):  # second pass broadcasts into result
-        result[leading+(slice(i,i+di),)] = a
+        result[leading+(slice(i, i+di),)] = a
         i += di
     return result
 
+
 def a_(*args, **kwargs):
-    """stack arrays on one axis
+    """Stack arrays on one axis.
 
     This is like np.stack, except that the input arrays are broadcast to
     a common shape before stacking, so that they need only be conformable
-    rather than exactly the same shape.
+    rather than exactly the same shape::
 
-    Primary use cases:
         a_(2, 3, 5, ...)  # instead of
         array([2, 3, 5, ...])
         a_(0, [2, 3, 5])  # instead of
@@ -177,17 +197,14 @@ def a_(*args, **kwargs):
     a1, a2, ... : array_like
         The arrays to be joined.  The arrays will be broadcast to a common
         shape before being joined.
-
-    Keywords
-    --------
-    axis : int, optional
+    axis : int, optional keyword
         The axis for the new dimension in the result, by default axis=0,
         meaning the first axis of the result.
 
     Returns
     -------
     joined : ndarray
-        The stacked array.  The shape is
+        The stacked array.
     """
     axis = kwargs.pop('axis', 0)
     if kwargs:
@@ -200,11 +217,12 @@ def a_(*args, **kwargs):
         dtype = t if dtype is None else result_type(dtype, t)
         ndim = max(ndim, a.ndim)
         alist.append(a)
-    if axis<-ndim-1 or axis>ndim>0:
+    if axis < -ndim-1 or axis > ndim > 0:
         raise ValueError("axis keyword is out of bounds")
     shape = array([(1,)*(ndim-a.ndim)+a.shape for a in alist])
     shape = tuple(shape.max(axis=0))
-    if axis < 0: axis = ndim+1 + axis
+    if axis < 0:
+        axis = ndim+1 + axis
     s, t = shape[:axis], shape[axis:]
     result = zeros(s+(len(alist),)+t, dtype=dtype)
     s = ((slice(None),)*ndim)[:axis]
@@ -212,29 +230,33 @@ def a_(*args, **kwargs):
         result[s+(i,)] = a
     return result
 
+
 def max_(a, *args):
-    """Return elementwise maximum of any number of arguments."""
+    """Return elementwise maximum of any number of array-like arguments."""
     for b in args:
         a = maximum(a, b)
     return a
 
+
 def min_(a, *args):
-    """Return elementwise minimum of any number of arguments."""
+    """Return elementwise minimum of any number of array-like arguments."""
     for b in args:
         a = minimum(a, b)
     return a
 
-# note this does more sqrt operations than needed
-# problem with summing squares is overflow/underflow at half range
-# problem with normalizing is lots of elementwise logic and that
-#    the divides are about as expensive as sqrts
+
 def abs_(a, *args):
-    """Return elementwise 2-norm of any number of arguments."""
+    """Return elementwise 2-norm of any number of array-like arguments."""
     if not args:
         return absolute(a)
+    # note this does more sqrt operations than needed
+    # problem with summing squares is overflow/underflow at half range
+    # problem with normalizing is lots of elementwise logic and that
+    #    the divides are about as expensive as sqrts
     for b in args:
-        a = norm((a,b), axis=0)
+        a = norm((a, b), axis=0)
     return a
+
 
 def atan(a, b=None, out=None, branch=None):
     """Return arctan with one argument, arctan2 with two arguments.
@@ -273,6 +295,7 @@ def atan(a, b=None, out=None, branch=None):
 
 # Following three are finite difference companions to np.diff
 
+
 def cum(a, axis=-1):
     """Calculate cumulative sums (cumsum) with prepended 0.
 
@@ -288,13 +311,15 @@ def cum(a, axis=-1):
 
     Returns
     -------
-    cum : ndarray
+    ndarray
         The cumulative sums, starting with 0.  The shape of the output
         is the same as `a`, except along `axis`, which is larger by 1.
 
     See Also
     --------
-    cumsum, diff
+    np.cumsum : same except missing leading 0
+    np.diff : pairwise differences
+    zcen : pairwise means
 
     Examples
     --------
@@ -321,15 +346,16 @@ def cum(a, axis=-1):
     return concatenate((zeros(z, dtype=a.dtype), a.cumsum(axis=axis)),
                        axis=axis)
 
+
 def zcen(a, axis=-1):
-    """Zone center, computing means of adjacent elements along an axis.
+    """Zone center by computing means of adjacent elements along an axis.
 
     This is a companion to `diff`.  For example, given values `f` at
-    sorted points `x`,
-        sum(zcen(f) * diff(x))
-    is the trapezoid-rule definite integral of f(x), and
-        cum(zcen(f) * diff(x))
-    is the indefinite integral.
+    sorted points `x`, you can compute the definite and indefinite
+    trapezoid rule integrals with::
+
+        sum(zcen(f) * diff(x))  # definite integral
+        cum(zcen(f) * diff(x))  # indefinite integral
 
     Parameters
     ----------
@@ -340,13 +366,15 @@ def zcen(a, axis=-1):
 
     Returns
     -------
-    zcen : ndarray
+    ndarray
         The zone centered values.  The shape of the output is the same
         as `a`, except along `axis`, which is smaller by 1.
 
     See Also
     --------
-    diff, cum, pcen
+    np.diff : pairwise differences
+    cum : cumulative sums starting from 0
+    pcen : point center
 
     Examples
     --------
@@ -370,8 +398,9 @@ def zcen(a, axis=-1):
     # note implicit promotion to float type
     return (a[tuple(slice1)] + a[tuple(slice2)]) * 0.5
 
+
 def pcen(a, axis=-1):
-    """Point center, computing adjacent means and leaving endpoints same.
+    """Point center by computing adjacent means and leaving endpoints same.
 
     Parameters
     ----------
@@ -382,13 +411,14 @@ def pcen(a, axis=-1):
 
     Returns
     -------
-    pcen : ndarray
+    ndarray
         The zone centered values.  The shape of the output is the same
         as `a`, except along `axis`, which is larger by 1.
 
     See Also
     --------
-    zcen, diff
+    np.diff : pairwise differences
+    zcen : zone center
 
     Examples
     --------

@@ -1063,11 +1063,13 @@ viridis = cmaps['viridis']
 # Register the matplotlib 2.0 colormaps.
 from matplotlib.cm import register_cmap
 for cmap in magma, inferno, plasma, viridis:
-    register_cmap(cmap = cmap)
+    register_cmap(cmap=cmap)
 
 # Make magma, etc. work like other colormap names.
 from matplotlib import rc
 from matplotlib.pyplot import gci, draw_if_interactive
+
+
 def cminst(name):
     def install_cmap():
         rc('image', cmap=name)
