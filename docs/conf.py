@@ -93,6 +93,7 @@ exclude_patterns = ['_build']
 # If true, the current module name will be prepended to all description
 # unit titles (such as .. function::).
 #add_module_names = True
+add_module_names = False
 
 # If true, sectionauthor and moduleauthor directives will be shown in the
 # output. They are ignored by default.
@@ -125,7 +126,8 @@ html_theme_options = {
     #'fixed_sidebar': True,  broken temporarily?
     'github_user': 'dhmunro',
     'github_repo': 'npplus',
-    'github_button': True,
+    'show_related': True,
+    # without show_related, module pages have no links to any other page
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
