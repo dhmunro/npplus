@@ -4,7 +4,7 @@ NpPlus - numpy and pyplot Enhancements
 Highlights
 ----------
 
-1. A high performance piecewise polynomial class PwPOly supporting more
+1. A high performance piecewise polynomial class PwPoly supporting more
    methods than the scipy PPoly class, including a root finder and
    arithmetic operations.
 2. Simplified spline and polyline interpolating and fitting functions
