@@ -38,6 +38,8 @@ __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
 import sys
 if sys.version_info < (3,):
     range = xrange
+else:
+    range = sys.modules['builtins'].range
 
 from numpy import array, asanyarray, asfarray, zeros, zeros_like
 from numpy import sign, absolute, log, exp, maximum, minimum, concatenate
@@ -285,15 +287,20 @@ def atan(a, b=None, out=None, branch=None):
     case is arguably ``branch=0``, which returns ``0<=angle<2*pi`` as
     expected.
     """
-    if b is None:
-        return arctan(a, out=out)
-    a = arctan2(a, b, out=out)
+    if out is None:
+        if b is None:
+            return arctan(a)
+        a = arctan2(a, b)
+    else:  # these fail in python3 when out is None
+        if b is None:
+            return arctan(a, out=out)
+        a = arctan2(a, b, out=out)
     if branch is None:
         return a
     # return 2pi - (branch-a)%2pi + branch
     a = (a-branch)%(2.*pi) + branch
     if out is not None:
-        out[...] = a  # fails if out is scalar...
+        out[...] = a
     return a
 
 # Following three are finite difference companions to np.diff
