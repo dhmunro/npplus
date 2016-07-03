@@ -52,7 +52,7 @@ def span(start, stop, num=100, axis=0, dtype=None):
 
     Parameters
     ----------
-    start, stop : array_like
+    start,stop : array_like
         Shapes must be conformable but need not match exactly.
     num : int, optional
         Number of points in result.
@@ -65,7 +65,7 @@ def span(start, stop, num=100, axis=0, dtype=None):
     Returns
     -------
     samples : ndarray
-        samples[0] == `start`, samples[num-1] == `stop`,
+        ``samples[0] == start``, ``samples[num-1] == stop``,
         with equal differences between successive intervening values
 
     See Also
@@ -99,7 +99,7 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
 
     Parameters
     ----------
-    start, stop : array_like
+    start,stop : array_like
         Shapes must be conformable but need not match exactly.
     num : int, optional
         Number of points in result.
@@ -112,7 +112,7 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
     Returns
     -------
     samples : ndarray
-        samples[0] == `start`, samples[num-1] == `stop`,
+        ``samples[0] == start``, ``samples[num-1] == stop``,
         with equal ratios between successive intervening values
 
     See Also
