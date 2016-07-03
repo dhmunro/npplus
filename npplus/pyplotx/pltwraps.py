@@ -2,19 +2,16 @@
 # All rights reserved.
 # This is Open Source software, released under the BSD 2-clause license,
 # see http://opensource.org/licenses/BSD-2-Clause for details.
-
 """Interactive wrappers for interactive use of various pyplot APIs.
 
-Functions like matplotlib.pyplot.plot(x,y) are usually invoked as
+Functions like ``matplotlib.pyplot.plot(x,y)`` are usually invoked as
 subroutine calls interactively, but inconveniently return an object
 which prints at the terminal.  This module wraps such functions to
 return None, so that an interactive terminal isn't half filled with
 unwanted object outputs.  In the rare cases in which you need the
-return value, you can easily use, e.g.- result = plt.plot(x,y).
+return value, you can easily use, e.g.- ``result = plt.plot(x,y)``.
 
-Also provides the following functions:
-
-xylim() : same as plt.axis(), since axis, xlim, ylim now return None
+Also provides the convenience functions `xylim` and `logxy`.
 """
 
 # require alternatives: axis

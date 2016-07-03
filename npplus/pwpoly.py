@@ -16,7 +16,7 @@ piecewise polynomials of any degree.
 The `spline` and `pline` functions return the interpolating function
 passing exactly through a given set of points.  The `splfit` and
 `plfit` functions return the least squares best fit to a cloud of
-given points with given knot points (the x values separating the
+given points with given knot points (the `x` values separating the
 polynomial pieces).  All four functions work for curves in
 multidimensional space.  A quick tour of PwPoly functionality::
 
@@ -34,7 +34,7 @@ multidimensional space.  A quick tour of PwPoly functionality::
 The only common use cases for the PwPoly constructor are for making
 histograms, that is, piecewise constant functions, which you do by
 supplying one more or less y value than x value, and for constructing
-piecewise cubic functions passing through (x,y) with given dy/dx::
+piecewise cubic functions passing through ``(x,y)`` with given ``dy/dx``::
 
     histo = PwPoly(x, y)  # y.size = x.size+1 or x.size-1
     cubic = PwPoly(x, y, dydx)  # x, y, dydx same size
@@ -79,7 +79,7 @@ class PwPoly(object):
         List of abcissa values bounding the pieces, in increasing order.
         As a convenience, strictly decreasing `xk` are also accepted.
 
-    yk, dydxk, d2ydx2k/2, ... : array_like
+    yk,dydxk,d2ydx2k/2,... : array_like
         Each is a list of function and derivative values `yk`,
         `dydxk`, `d2ydx2k/2`, etc. corresponding to the points `xk`.
         This produces an odd degree polynomial in each interval,
@@ -105,28 +105,10 @@ class PwPoly(object):
         semi-infinite interval before the first knot point, which is
         relative to the first knot.
 
-    All the `yk`, `dydxk`, etc. may have a set of leading axes to
-    define a multidimensional piecewise polynomial function of `xk`.
-    That is, the interpolation direction is the last axis of `xk`,
-    `yk`, `dydxk`, etc.
-
-    Let p and q be PwPoly instances.  The following operators work:
-
-    Operators
-    ---------
-    p(x)
-        Evaluate `p` at `x`, returning array of same shape as `x`.
-        If `p` is multidimensional, its additional dimensions are leading
-        dimensions of the result.
-    p+q, p-q, -p, p*q
-        Return a new PwPoly instance.  If `p` and `q` have different
-        `xk`, result the union of the two `xk`.  Either `p` or `q` may
-        be scalars (or arrays same shape as ``p(0)``).  For array_like
-        `q`, division `p/q` also works.
-    p[i]
-        Components of `p`, only for multidimensional `p`.
-    len(p)
-        First dimension length of `p`, only for multidimensional `p`.
+        All the `yk`, `dydxk`, etc. may have a set of leading axes to
+        define a multidimensional piecewise polynomial function of `xk`.
+        That is, the interpolation direction is the last axis of `xk`,
+        `yk`, `dydxk`, etc.
 
     Attributes
     ----------
@@ -149,6 +131,22 @@ class PwPoly(object):
 
     Notes
     -----
+    Let p and q be PwPoly instances.  The following operators work:
+
+    ``p(x)``
+        Evaluate `p` at `x`, returning array of same shape as `x`.
+        If `p` is multidimensional, its additional dimensions are leading
+        dimensions of the result.
+    ``p+q, p-q, -p, p*q``
+        Return a new PwPoly instance.  If `p` and `q` have different
+        `xk`, result the union of the two `xk`.  Either `p` or `q` may
+        be scalars (or arrays same shape as ``p(0)``).  For array_like
+        `q`, division `p/q` also works.
+    ``p[i]``
+        Components of `p`, only for multidimensional `p`.
+    ``len(p)``
+        First dimension length of `p`, only for multidimensional `p`.
+
     The PwPoly constructor produces a smooth fit that is local, in the
     sense that the function in the interval between consecutive knot
     points depends only on the given function and derivative values at
@@ -255,9 +253,11 @@ class PwPoly(object):
 
         Returns
         -------
-        PwPoly or a subclass
+        p : PwPoly or a subclass
             The new PwPoly.
 
+        Notes
+        -----
         If ``xk.size`` is K+1, `xk` will not be copied.  If
         ``xk.size`` is K, ``xk[0]`` will be duplicated.  The
         coefficient array `c` is always used uncopied.  No error
@@ -298,7 +298,7 @@ class PwPoly(object):
         nd : optional int, default 0
             Number of derivatives to evaluate.
 
-        Results
+        Returns
         -------
         y : ndarray, or tuple of ``1+nd`` ndarrays when ``nd>0``
             Function values, or function and derivative values.  Each array
@@ -519,7 +519,7 @@ class PwPoly(object):
         n : int, optional
             Maximum degree of returned coefficients, all by default.
 
-        Results
+        Returns
         -------
         dc : ndarray
             Shape is ``(n, ..., K)`` where `K` is number of knot points.
@@ -550,7 +550,7 @@ class PwPoly(object):
         n : int, optional
             Degree for new piecewise polynomial, default same as this one.
 
-        Results
+        Returns
         -------
         PwPoly
             Like this PwPoly but with knots `xk`.
@@ -592,7 +592,7 @@ class PwPoly(object):
         n : int, optional
             Degree for new piecewise polynomial, default same as this one.
 
-        Results
+        Returns
         -------
         PwPoly
             Like this PwPoly but with knots `xk`.
@@ -617,13 +617,13 @@ class PwPoly(object):
 
         Parameters
         ----------
-        pwp1, pwp2, ... : PwPoly
+        pwp1,pwp2,... : PwPoly
             The input PwPoly instances.
         tol : float, optional keyword
             Relative tolerance compared to interval between knots,
             default 1e-6.
 
-        Results
+        Returns
         -------
         xk : ndarray
             1D union of knot points in increasing order.
@@ -1201,6 +1201,13 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
         boundary constraints is ``y[...,0].shape``, that is, any
         leading dimensions of `y`.
 
+    See Also
+    --------
+    plfit : special case of splfit for ``n=1``, ``nc=0``
+    spline : general PwPoly spline interpolation function
+
+    Notes
+    -----
     The cost values require a bit more explanation.  Each interior
     constraint is schematically ``c[this] - l2r.dot(c[prev]) = 0``
     where `l2r` is the linear transformation mapping the polynomial
@@ -1214,11 +1221,6 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
     and `hi` constraints as well -- a positive `cost` means that if
     the coefficient changes by a positive amount for increasing x
     across the knot, then `chi2` will increase.
-
-    See Also
-    --------
-    plfit : special case of splfit for ``n=1``, ``nc=0``
-    spline : general PwPoly spline interpolation function
     """
     # There is a degree-n B-spline algorithm analogous to the degree-1
     # algorithm used in plfit.  The direct matrix solve here is far
@@ -1456,7 +1458,7 @@ def polyfun(c, x):
     x : array_like
         Points at which to evaluate polynomial.
 
-    Results
+    Returns
     -------
     p : ndarray
         Polynomial values, p = c[0] + c[1]*x + c[2]*x**2 + ...
@@ -1486,7 +1488,7 @@ def polyddx(c, x, nd=None, norm=False):
         If false (default), returns N-th derivative divided by N! (Taylor
         series expansion coefficient).  If true, returns N-th derivative.
 
-    Results
+    Returns
     -------
     pdp : ndarray
         Polynomial and derivative values for::

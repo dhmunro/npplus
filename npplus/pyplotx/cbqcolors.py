@@ -20,38 +20,34 @@ class CBQ(object):
     meant to distinguish twelve or fewer different regions.  Only the
     first three set2 and dark2 colors and the first four paired colors
     are colorblind safe.  Mostly these sets are distinguished by hue,
-    with the colors in a set similar lightness and saturation.
+    with the colors in a set similar lightness and saturation::
 
-    set1, pastel1            9 colors
-    set2, pastel2, dark2     8 colors
-    set3                    12 colors
-    accent                   8 colors
-    paired                  12 colors
+        set1, pastel1            9 colors
+        set2, pastel2, dark2     8 colors
+        set3                    12 colors
+        accent                   8 colors
+        paired                  12 colors
 
-    set1 darkest, most saturated
-    dark2 next darkest, less saturated
-    accent 4 lighter colors followed by 4 darker colors
-    set2 more uniform about same darkness as lighter accent colors
-    set3 intermediate between darker and more pastel sets
-    pastel1 more variable lightness, more saturated than pastel2
-    pastel2 lightest, least saturated
-    paired[0::2] are pastel corresponding to darker paired[1::2]
-       pastels are about at set3 lightness, darks about at set1
+        set1 darkest, most saturated
+        dark2 next darkest, less saturated
+        accent 4 lighter colors followed by 4 darker colors
+        set2 more uniform about same darkness as lighter accent colors
+        set3 intermediate between darker and more pastel sets
+        pastel1 more variable lightness, more saturated than pastel2
+        pastel2 lightest, least saturated
+        paired[0::2] are pastel corresponding to darker paired[1::2]
+           pastels are about at set3 lightness, darks about at set1
 
     The yellow color in set1, pastel1, set3, accent, and paired is not
     visible against white.  All other colors contrast with both white
-    and black.  The following modified sets omit the yellow color:
+    and black.  The following modified sets omit the yellow color::
 
-    set1ny, pastel1ny      8 colors
-    set3ny                11 colors
-    accentny               7 colors
+        set1ny, pastel1ny      8 colors
+        set3ny                11 colors
+        accentny               7 colors
 
     Do not use the final pair in paired, that is use only paired[0:10],
     to avoid the yellow (which is paired[10]).
-
-    Class Methods
-    -------------
-    set_color_cycle
     """
     set1 = ('#E41A1C', '#377EB8', '#4DAF4A', '#984EA3', '#FF7F00',
             '#FFFF33', '#A65628', '#F781BF', '#999999')

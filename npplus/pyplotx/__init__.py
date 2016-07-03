@@ -4,5 +4,5 @@
 # see http://opensource.org/licenses/BSD-2-Clause for details.
 """Matplotlib interactive usability enhancements.
 
-Improvements the pyplot interactive mode.
+Improvements to the pyplot interactive mode.
 """

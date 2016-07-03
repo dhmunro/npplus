@@ -2,9 +2,9 @@
 # All rights reserved.
 # This is Open Source software, released under the BSD 2-clause license,
 # see http://opensource.org/licenses/BSD-2-Clause for details.
-"""Import most names in npplus for interactive use.
+"""Import most names in npplus for interactive use. ::
 
-from npplus.interactive import *
+    from npplus.interactive import *
 
 This module should be imported only from PYTHONSTARTUP, except for
 similar interactive.py modules in other packages.
@@ -52,19 +52,21 @@ if sys.version_info >= (3,):
 
 # implement extended reload for development reloadx-pdb-edit cycle
 def reloadx(module):
-    """reload(module); from module import *
+    """Shorthand for ``reload(module); from module import *``.
 
-    # You may want to softlink 'ln -s /path/to/module_or_package .'
-    # in your user site-packages directory (python -m site --user-site).
-    # See site module in python standard library documentation.
-    import module    # begin by importing your module or package
-    reloadx(module)  # same as from module import *
-    # test your module
-    import pdb       # use pdb.pm(), pdb.run("test...") to debug
-    # edit module.py (or package/module.py)
-    reloadx(module)  # reload module and re-import its symbols
-    # be sure to recreate any objects constructed from modified classes
-    # loop debug, edit, reloadx
+    To interactively develop a module, do this::
+
+        # You may want to softlink 'ln -s /path/to/module_or_package .'
+        # in your user site-packages directory (python -m site --user-site).
+        # See site module in python standard library documentation.
+        import module    # begin by importing your module or package
+        reloadx(module)  # same as from module import *
+        # test your module
+        import pdb       # use pdb.pm(), pdb.run("test...") to debug
+        # edit module.py (or package/module.py)
+        reloadx(module)  # reload module and re-import its symbols
+        # be sure to recreate any objects constructed from modified classes
+        # loop debug, edit, reloadx
     """
     reload(module)
     import __main__

@@ -4,19 +4,25 @@
 # see http://opensource.org/licenses/BSD-2-Clause for details.
 """Linear and non-linear least squares fitters.
 
-``p = regress(data, mod0, mod1, mod2, ..., errs=errs)``
-    returns p model coefficients for best linear fit to data of form
+* For a simple linear least squares fit::
 
-        ``data ~ p[0]*mod0 + [1]*mod1 + p[2]*mod2 + ...``
+      p = regress(data, mod0, mod1, mod2, ..., errs=errs)
 
-    ``model=1`` keyword returns more information, such as covariances.
+  returns `p` model coefficients for best linear fit to data of form ::
 
-``model = levmar(data, f, p0, arg0, arg1, ..., errs=errs)``
-    returns callable model with best fit to data of form
+      data ~ p[0]*mod0 + [1]*mod1 + p[2]*mod2 + ...``
 
-        ``data ~ model(arg0, arg1, ...) = f(p, arg0, arg1, ...)``
+  Use the ``model=1`` keyword to return more information, such as covariances.
 
-    ``model.p`` are the best fit parameters, ``model.pcov`` their covariances.
+* For a non-linear least squares fit to a parametrized function::
+
+      model = levmar(data, f, p0, arg0, arg1, ..., errs=errs)``
+
+  returns callable model with best fit to data of form ::
+
+      data ~ model(arg0, arg1, ...) = f(p, arg0, arg1, ...)
+
+  ``model.p`` are the best fit parameters, ``model.pcov`` their covariances.
 """
 
 __all__ = ['regress', 'levmar', 'LevmarError']
@@ -30,9 +36,9 @@ from inspect import isgeneratorfunction
 
 
 def regress(data, *mdl, **kwargs):
-    """Least squares fit a linear model to data.
+    """Least squares fit a linear model to data. ::
 
-        ``p = regress(data, m1, m2, m3, ...)``
+        p = regress(data, m1, m2, m3, ...)
 
     finds 1D array of coefficients p such that::
 
@@ -49,19 +55,16 @@ def regress(data, *mdl, **kwargs):
     ----------
     data : array_like
         The data to be fit.
-    m1, m2, m3, ... : array_like
+    m1,m2,m3,... : array_like
         Each of the `mi` must be conformable with data, representing
         a particular component of the linear model to explain the data.
-
-    Keyword Parameters
-    ------------------
-    errs : array_like
+    errs : array_like, optional keyword
         If provided, must be conformable with data, representing the
         standard deviation of each data point, default 1.
-    model : bool
+    model : bool, optional keyword
         If not provided or false, the return value is the coefficients `p`.
         If true, the return value is a ModelFit instance.
-    rcond : float
+    rcond : float, optional keyword
         Reciprocal condition number, default 1e-9.  Often the data do
         no permit a definitive choice of model -- entire p-subspaces
         may produce indistinguishably good fits to the data, which
@@ -92,7 +95,7 @@ def regress(data, *mdl, **kwargs):
 
     See Also
     --------
-    regress : linear least squares fitter
+    levmar : non-linear least squares fitter
     ModelFit : class for best fit models
 
     Notes
@@ -192,7 +195,7 @@ def levmar(data, f, p0, *args, **kwargs):
     p0 : array_like
         The initial guess for the 1D parameters `p` needed to fit data.
 
-    a1, a2, ... : arbitrary
+    a1,a2,... : arbitrary
         The model function `f` may have any number of postional
         arguments beyond its first argument `p`; any additional
         positional arguments to levmar will be passed unexamined to
@@ -228,7 +231,7 @@ def levmar(data, f, p0, *args, **kwargs):
         a failure to converge, it prints a warning message unless this
         keyword is present and True.
 
-    k1=k1, k2=k2, ... : arbitrary
+    k1=k1,k2=k2,... : arbitrary
         Any other keyword arguments are passed unexamined to every call
         of `f`.
 
@@ -240,10 +243,19 @@ def levmar(data, f, p0, *args, **kwargs):
         to inspect the parameter values themselves, their covariances, and
         other information about the fit.
 
-    Attributes
-    ----------
-    config : dict
-        Options to control the Levenberg-Marquardt algorithm:
+    See Also
+    --------
+    regress : linear least squares fitter
+    ModelFit : class for best fit models
+
+    Notes
+    -----
+    You should scale the `p` values so that their values will not be
+    very large or small.  This prevents problems with ill-conditioned
+    partial derivative matrices.
+
+    ``levmar.config`` function attribute
+        Options to control the Levenberg-Marquardt algorithm::
 
             itmax = maximum number of gradient recalculations (100)
             tol = tolerance, stop when chi2 changes by less than to (1.e-7)
@@ -255,17 +267,6 @@ def levmar(data, f, p0, *args, **kwargs):
 
         You may set ``levmar.config`` to change the default settings, or
         use the `cfg` keyword to change any subset for a single call.
-
-    See Also
-    --------
-    regress : linear least squares fitter
-    ModelFit : class for best fit models
-
-    Notes
-    -----
-    You should scale the `p` values so that their values will not be
-    very large or small.  This prevents problems with ill-conditioned
-    partial derivative matrices.
     """
     data, p0 = asfarray(data), asfarray(p0)
     errs = kwargs.pop('errs', 1.0) + zeros_like(data)
@@ -386,10 +387,6 @@ levmar.config = dict(itmax=100, tol=1.e-7, lambda0=0.001, lambdax=1.e12,
                      gain=10., prel=1.e-6, pabs=1.e-9)
 
 
-class LevmarError(ValueError):
-    """Levenberg-Marquardt algorithm lambda runaway, a kind of ValueError."""
-
-
 class ModelFit(object):
     """Best fit model of a parametrized family of models.
 
@@ -420,21 +417,6 @@ class ModelFit(object):
         More detailed information about the fit, such as the function that
         did it and how it was configured, the number of iterations, the
         initial guess and corresponding `chi2`, etc.
-
-    Properties
-    ----------
-    perr : ndarray
-        Standard deviations of `p`, that is, square root of the diagonal
-        of `pcov`.
-    chi2pcov : ndarray
-        Covariances estimated from the quality of this fit, assuming that
-        no errs were provided to go with the data.  This amount to assuming
-        that the `chi2` per degree of freedom of the fit is 1.0, and scaling
-        `errs` retroactively to make that true.  Every statistical package
-        provides this but warns against taking it too seriously.
-    chiperr : ndarray
-        Standard deviations of p estimated from the quality of this fit,
-        the square root of the diagonal of `chi2pcov`.
 
     See Also
     --------
@@ -467,12 +449,12 @@ class ModelFit(object):
 
         Parameters
         ----------
-        a1, a2, ... : arbitrary
-        k1=k1, k2=k2, ... : arbitrary
+        a1,a2,... : arbitrary
+        k1=k1,k2=k2,... : arbitrary
             Non-parameter arguments of the parametrized function
             ``f(p, a1, a2, ..., k1=k1, k2=k2, ...)``
 
-        Results
+        Returns
         -------
         ndarray
             The function value ``f(p, a1, a2, ..., k1=k1, k2=k2, ...)``
@@ -482,17 +464,30 @@ class ModelFit(object):
 
     @property
     def perr(self):
-        """Standard deviations of parameters."""
+        """Standard deviations of parameters.
+
+        The square root of the diagonal of `pcov`.
+        """
         return sqrt(diag(self.pcov))
 
     @property
     def chi2pcov(self):
-        """Covariance of parameters, errors estimated from quality of fit."""
+        """Covariance of parameters, errors estimated from quality of fit.
+
+        Covariances estimated from the quality of this fit, assuming that
+        no errs were provided to go with the data.  This amount to assuming
+        that the `chi2` per degree of freedom of the fit is 1.0, and scaling
+        `errs` retroactively to make that true.  Every statistical package
+        provides this but warns against taking it too seriously.
+        """
         return self.chi2 * self.pcov
 
     @property
     def chiperr(self):
-        """Std deviations of params, errors estimated from quality of fit."""
+        """Std deviations of params, errors estimated from quality of fit.
+
+        The square root of the diagonal of `chi2pcov`.
+        """
         return sqrt(diag(self.chi2pcov))
 
     def chi2prob(self, chi2=None):
@@ -504,7 +499,7 @@ class ModelFit(object):
             Chi square per degree of freedom.  If not specified, will use
             ``self.chi2``.  Note that this is `chi2` *per degree of freedom*.
 
-        Results
+        Returns
         -------
         prob : ndarray
             Probability that `chi2` of fit will be greater than given `chi2`.
@@ -544,3 +539,8 @@ def numerical_partials(f, p, f0=None, pmin=None, pmax=None, prel=1.e-6,
         pfull[pmask] = p1
         dfdp.append((f(pfull, *args, **kwargs) - f0)/dp)
     return array(dfdp)
+
+
+class LevmarError(ValueError):
+    """Levenberg-Marquardt algorithm lambda runaway, a kind of ValueError."""
+    pass

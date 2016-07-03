@@ -96,3 +96,8 @@ coverage.xml
 .cache
 .tox/
 nosetests.xml
+
+# sphinx
+_build
+_static
+_templates

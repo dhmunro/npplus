@@ -142,7 +142,7 @@ def cat_(*args, **kwargs):
 
     Parameters
     ----------
-    a1, a2, ... : array_like
+    a1,a2,... : array_like
         The arrays to be joined.  The arrays will be broadcast to a common
         shape over all axes except the one being joined.
     axis : int, optional keyword
@@ -194,7 +194,7 @@ def a_(*args, **kwargs):
 
     Parameters
     ----------
-    a1, a2, ... : array_like
+    a1,a2,... : array_like
         The arrays to be joined.  The arrays will be broadcast to a common
         shape before being joined.
     axis : int, optional keyword
@@ -267,20 +267,23 @@ def atan(a, b=None, out=None, branch=None):
     b : array_like, optional
     out : ndarray of proper shape to hold result, optional
     branch : array_like, optional
-        Branch cut angle (minimum value that can be returned).
+        Branch cut angle, the minimum value that can be returned.
         Ignored unless `b` is given.
 
-    Results
+    Returns
     -------
-    angle : ndarray
+    ndarray
         The angle in radians whose tangent is `a` if `b` not given,
-        or the angle from the ray `(1,0)` to the point `(b,a)` if
+        or the angle from the ray ``(1,0)`` to the point ``(b,a)`` if
         `b` is given.
 
-    With `branch`n two argument mode, `branch <= angle < branch+2*pi`.
-    Default is essentially -pi, except that `atan(0,-1)` returns pi,
-    but `atan(0,-1,branch=-pi)` returns -pi.  The most import case is
-    arguably `branch=0`, which returns `0<=angle<2*pi` as expected.
+    Notes
+    -----
+    In two argument mode, ``branch <= angle < branch+2*pi``.  Default
+    is essentially ``-pi``, except that ``atan(0,-1)`` returns ``pi``,
+    but ``atan(0,-1,branch=-pi)`` returns ``-pi``.  The most import
+    case is arguably ``branch=0``, which returns ``0<=angle<2*pi`` as
+    expected.
     """
     if b is None:
         return arctan(a, out=out)

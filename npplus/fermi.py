@@ -60,7 +60,7 @@ def fdm12(x):
     ----------
     x : array_like
 
-    Results
+    Returns
     -------
     ndarray
         ``integral[0 to inf]{ dt * t**(-0.5) / (exp(t-x)+1) }``
@@ -90,7 +90,7 @@ def fd12(x):
     ----------
     x : array_like
 
-    Results
+    Returns
     -------
     ndarray
         ``integral[0 to inf]{ dt * t**0.5 / (exp(t-x)+1) }``
@@ -119,7 +119,7 @@ def fd32(x):
     ----------
     x : array_like
 
-    Results
+    Returns
     -------
     ndarray
         ``integral[0 to inf]{ dt * t**1.5 / (exp(t-x)+1) }``
@@ -148,7 +148,7 @@ def fd52(x):
     ----------
     x : array_like
 
-    Results
+    Returns
     -------
     ndarray
         ``integral[0 to inf]{ dt * t**2.5 / (exp(t-x)+1) }``

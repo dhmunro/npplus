@@ -24,22 +24,22 @@ def solve_periodic(l_and_u, ab, b, overwrite_ab=False, overwrite_b=False,
         ab[u+i-j, j] == a[i, j]
         ab[i, j] == a[i+j-u, j]
 
-    Example (l,u)=(2,1) for 6x6:
+    Example (l,u)=(2,1) for 6x6::
 
         A50  a01  a12  a23  a34  a45
         a00  a11  a22  a33  a44  a55
         a10  a21  a32  a43  a54  A05
         a20  a31  a42  a53  A04  A15
 
-        A50   0    0    -    -    -    copy last row before first
+        A50   0    0    x    x    x    copy last row before first
         a00  a01   0    0   A04  A05  <-- matrix begins here
         a10  a11  a12   0    0   A15
         a20  a21  a22  a23   0    0
          0   a31  a32  a33  a34   0
          0    0   a42  a43  a44  a45
         A50   0    0   a53  a54  a55  <-- matrix ends here
-         -    -    0    0   A04  A05   copy first two rows after last
-         -    -    -    0    0   A15
+         x    x    0    0   A04  A05   copy first two rows after last
+         x    x    x    0    0   A15
 
     See Also
     --------

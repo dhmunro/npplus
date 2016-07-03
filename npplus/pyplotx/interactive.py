@@ -4,9 +4,13 @@
 # see http://opensource.org/licenses/BSD-2-Clause for details.
 """Set up for interactive plotting with matplotlib.pylab.
 
-from npplus.pyplotx.interactive import *
-# uncomment to get inward ticks and box (default outward, no box)
-#style_npp(box=True)
+Put this in your PYTHONSTARTUP file::
+
+    from npplus.pyplotx.interactive import *
+    # uncomment to get default npplus style (outward ticks, no box)
+    #style_npp()
+    # uncomment to get inward ticks and box
+    #style_npp(box=True)
 """
 
 # add npplus.interactive
