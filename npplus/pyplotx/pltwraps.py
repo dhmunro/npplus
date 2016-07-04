@@ -24,14 +24,11 @@ __all__ = ['annotate', 'axhline', 'axhspan', 'axvline', 'axvspan',
            'pcolormesh', 'pie', 'plot', 'plot_date', 'quiver',
            'scatter', 'stem', 'step', 'streamplot', 'subplot',
            'suptitle', 'text', 'title', 'tricontour', 'tricontourf',
-           'tripcolor', 'triplot', 'vlines', 'xlabel',
+           'tripcolor', 'triplot', 'violinplot', 'vlines', 'xlabel',
            'xlim', 'ylabel', 'ylim']
 
 from functools import wraps as _wraps
 import matplotlib.pyplot as plt  # name plt cannot appear in __all__ list
-
-if hasattr(plt, 'violinplot'):
-    __all__ += ['violinplot']
 
 
 def _iwrap(name):
@@ -44,7 +41,13 @@ def _iwrap(name):
     globals()[name] = iwrapped
 
 for _ in __all__:
-    _iwrap(_)
+    try:
+        _iwrap(_)
+    except AttributeError:
+        # Happens in two important cases:
+        # 1. Old versions of matplotlib do not have violinplot.
+        # 2. ReadTheDocs uses mock matplotlib.pyplot with no names.
+        exec(_+'=None')  # otherwise "from pltwraps import *" fails
 
 
 def xylim():

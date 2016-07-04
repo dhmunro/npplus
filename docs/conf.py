@@ -30,9 +30,9 @@ import os
 
 import mock
 MOCK_MODULES = ['numpy', 'numpy.linalg', 'numpy.fft', 'numpy.random',
-                'scipy', 'scipy.linalg', 'scipy.special', 'matplotlib',
-                'matplotlib.pyplot', 'matplotlib.colors', 'matplotlib.cm',
-                'pylab']
+                'numpy.ma', 'scipy', 'scipy.linalg', 'scipy.special',
+                'matplotlib', 'matplotlib.pyplot', 'matplotlib.colors',
+                'matplotlib.cm', 'pylab']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 

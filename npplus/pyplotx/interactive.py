@@ -30,4 +30,8 @@ from .pltwraps import *
 from .mpldefaults import *
 
 # turn on matplotlib.pyplot interactive mode
-plt.ion()
+try:
+    plt.ion()
+except NameError:
+    # ReadTheDocs mock import needs this
+    pass

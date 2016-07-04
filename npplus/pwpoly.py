@@ -1538,5 +1538,5 @@ def _polysetup(c, x):
 ########################################################################
 # useful special cases
 
-heaviside = PwPoly([0.], [0., 1.])
-absval = (2.*heaviside - 1.).integ()
+#heaviside = PwPoly([0.], [0., 1.])
+#absval = (2.*heaviside - 1.).integ()
