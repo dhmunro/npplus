@@ -1,5 +1,18 @@
 # -*- coding: utf-8 -*-
-#
+
+########################################################################
+########################################################################
+
+# ReadTheDocs cannot easily build projects which depend on matplotlib or
+# scipy or other packages beyond the standard library which involve
+# compiled code.  See:
+# http://blog.rtwilson.com/how-to-make-your-sphinx-documentation-
+#                 compile-with-readthedocs-when-youre-using-numpy-and-scipy/
+
+########################################################################
+########################################################################
+
+
 # NpPlus documentation build configuration file, created by
 # sphinx-quickstart on Sat Jul  2 21:16:01 2016.
 #
@@ -14,6 +27,14 @@
 
 import sys
 import os
+
+import mock
+MOCK_MODULES = ['numpy', 'numpy.linalg', 'numpy.fft', 'numpy.random',
+                'scipy', 'scipy.linalg', 'scipy.special', 'matplotlib',
+                'matplotlib.pyplot', 'matplotlib.colors', 'matplotlib.cm',
+                'pylab']
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
