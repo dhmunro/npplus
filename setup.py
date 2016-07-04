@@ -12,7 +12,7 @@ setup(name='npplus',
       author_email='dhmunro@users.sourceforge.net',
       url='https://github.com/dhmunro/npplus',
       packages=['npplus', 'npplus/pyplotx'],
-      requires=['numpy', 'scipy'],
+      install_requires=['numpy>=1.6.0', 'scipy>=0.10', 'matplotlib>=1.3.0'],
       license='http://opensource.org/licenses/BSD-2-Clause',
       platforms=['Linux', 'MacOS X', 'Unix'],
       classifiers=[
