@@ -2,6 +2,7 @@
 # All rights reserved.
 # This is Open Source software, released under the BSD 2-clause license,
 # see http://opensource.org/licenses/BSD-2-Clause for details.
+"""Interface for proper use of ColorBrewer qualitative color sets."""
 
 from matplotlib import rc
 try:
@@ -14,7 +15,7 @@ except ImportError:
 
 
 class CBQ(object):
-    """Container for Color Brewer qualitative color sets.
+    """Container for ColorBrewer qualitative color sets.
 
     These are good choices for line color cycles, in addition to maps
     meant to distinguish twelve or fewer different regions.  Only the

@@ -20,6 +20,8 @@ have different algorithms in different domains of `x`::
 Defines ``fun(x)`` to be ``funlo(x)`` for ``x<xa``, ``funmid(x)`` for
 ``xa<=x<xb``, and ``funhi(x)`` for ``xb<=x``.  Any number of domains
 is allowed.
+
+--------
 """
 
 __all__ = ['pcwise']

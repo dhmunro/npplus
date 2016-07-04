@@ -23,6 +23,8 @@
       data ~ model(arg0, arg1, ...) = f(p, arg0, arg1, ...)
 
   ``model.p`` are the best fit parameters, ``model.pcov`` their covariances.
+
+--------
 """
 
 __all__ = ['regress', 'levmar', 'LevmarError']

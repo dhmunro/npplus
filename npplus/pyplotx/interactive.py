@@ -11,6 +11,8 @@ Put this in your PYTHONSTARTUP file::
     #style_npp()
     # uncomment to get inward ticks and box
     #style_npp(box=True)
+
+--------
 """
 
 # add npplus.interactive

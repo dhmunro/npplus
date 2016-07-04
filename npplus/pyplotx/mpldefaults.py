@@ -17,6 +17,8 @@ Provides ``style_npp()`` function to set nicer default matplotlib style:
 5. Change to a more yorick-like default plot style, with much larger
    axis labels, outward ticks, and a much subtler background.
 6. Define title function that works with outward ticks.
+
+--------
 """
 
 # The plot style could have been put in a matplotlib stylelib file

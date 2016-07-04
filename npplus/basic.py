@@ -30,6 +30,8 @@ Enhancements fall into several categories:
 5. Combine the one and two argument arctan in a single ``atan`` function.
    In two argument mode, provides for branch cut at any angle.
    Note that ``abs_(y,x)`` and ``atan(y,x)`` work well together.
+
+--------
 """
 
 __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',

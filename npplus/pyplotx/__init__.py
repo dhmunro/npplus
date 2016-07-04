@@ -5,4 +5,6 @@
 """Matplotlib interactive usability enhancements.
 
 Improvements to the pyplot interactive mode.
+
+--------
 """

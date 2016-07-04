@@ -45,6 +45,8 @@ spline routines are wrappers around the old Fortran fitpack package.
 A key advantage of the pwpoly module is that you can mine the code here
 and adapt it to slightly different problems, whereas compiled fitpack
 code is not adaptable.
+
+--------
 """
 
 __all__ = ['PwPoly', 'PerPwPoly', 'spline', 'pline', 'splfit', 'plfit']

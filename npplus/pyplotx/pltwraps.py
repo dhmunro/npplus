@@ -12,6 +12,8 @@ unwanted object outputs.  In the rare cases in which you need the
 return value, you can easily use, e.g.- ``result = plt.plot(x,y)``.
 
 Also provides the convenience functions `xylim` and `logxy`.
+
+--------
 """
 
 # require alternatives: axis

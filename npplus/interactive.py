@@ -8,6 +8,8 @@
 
 This module should be imported only from PYTHONSTARTUP, except for
 similar interactive.py modules in other packages.
+
+--------
 """
 
 # sys and os too common to have to import them

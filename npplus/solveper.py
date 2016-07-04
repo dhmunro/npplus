@@ -9,7 +9,10 @@ to first equations and first elements of `x` to final equations.
 
 Also include `solves_banded`, a variant of `solveh_banded` that does not
 require a positive definite symmetric matrix.
+
+--------
 """
+
 from numpy import asfarray, result_type, zeros, eye, arange, roll, diag
 from numpy import concatenate
 from scipy.linalg import solve_banded, solve

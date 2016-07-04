@@ -1,5 +1,7 @@
 """Fermi-Dirac integral and inverse of orders -1/2, 1/2, 3/2, 5/2
 Antia, H.M., Aph.J 84, 101-108 (1993)
+
+--------
 """
 
 # fermi integral related to polylogarithm:  F_j(x) = -Li_j+1(-exp(x))
