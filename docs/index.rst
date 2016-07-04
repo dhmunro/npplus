@@ -6,6 +6,8 @@
 NpPlus Numpy enhancements
 =========================
 
+http://github.com/dhmunro/npplus
+
 Contents:
 
 .. toctree::
