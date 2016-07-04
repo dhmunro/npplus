@@ -1129,7 +1129,7 @@ def splfit(xk, x, y, sigy=None, n=3, nc=None, lo=(), hi=(), per=False,
         `x` values "near" each interval of `xk`.  The `xk` must be
         strictly monotonic.
 
-    x, y : array_like
+    x,y : array_like
         Cloud of points to fit.  If `f` is the returned PwPoly,
 
             ``chi2 = sum(((f(x) - y)/sigy)**2)``
