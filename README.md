@@ -1,6 +1,8 @@
 NpPlus - numpy and pyplot Enhancements
 ======================================
 
+See complete documentation at http://npplus.readthedocs.io.
+
 Highlights
 ----------
 
