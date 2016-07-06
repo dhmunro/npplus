@@ -3,6 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
++------------------------+------------------------+------------------------+
+|    :ref:`genindex`     |    :ref:`modindex`     |     :ref:`search`      |
++------------------------+------------------------+------------------------+
+
 NpPlus Numpy enhancements
 =========================
 
@@ -10,10 +14,15 @@ Homepage: http://github.com/dhmunro/npplus
 
 PyPI: https://pypi.python.org/pypi/npplus
 
-Contents:
+
+Summary
+=======
+
+.. automodule:: npplus
 
 .. toctree::
-    :maxdepth: 1
+    :hidden:
+    :glob:
 
     basic
     pwpoly
@@ -23,16 +32,3 @@ Contents:
     solveper
     interactive
     pyplotx
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
-
-Summary
-=======
-
-.. automodule:: npplus
