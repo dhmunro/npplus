@@ -894,7 +894,7 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     if shape[-1] != nk:
         raise TypeError("y must have same final axis as x")
     shape = shape[:-1]
-    nshape = prod(shape)
+    nshape = prod(shape, dtype=int)
     y = y.reshape(nshape, nk)
     nm1, nk1 = n-1, nk-1
     if not isinstance(lo, tuple):
