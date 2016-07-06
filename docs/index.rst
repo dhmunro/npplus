@@ -6,7 +6,9 @@
 NpPlus Numpy enhancements
 =========================
 
-http://github.com/dhmunro/npplus
+Homepage: http://github.com/dhmunro/npplus
+
+PyPI: https://pypi.python.org/pypi/npplus
 
 Contents:
 

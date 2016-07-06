@@ -5,7 +5,7 @@ from __future__ import print_function
 from setuptools import setup
 
 setup(name='npplus',
-      version='0.9',
+      version='0.9.1',
       description='Enhancements to Numpy',
       long_description=open('README.md').read(),
       author='David H. Munro',
