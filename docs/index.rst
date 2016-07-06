@@ -13,7 +13,7 @@ PyPI: https://pypi.python.org/pypi/npplus
 Contents:
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
 
     basic
     pwpoly
@@ -24,11 +24,6 @@ Contents:
     interactive
     pyplotx
 
-Overview
-========
-
-.. automodule:: npplus
-
 Indices and tables
 ==================
 
@@ -36,3 +31,8 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+
+Summary
+=======
+
+.. automodule:: npplus

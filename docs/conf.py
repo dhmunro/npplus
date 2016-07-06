@@ -145,15 +145,13 @@ html_theme = 'alabaster'
 # documentation.
 #html_theme_options = {}
 html_theme_options = {
+    'description': "numpy enhancements",
     'fixed_sidebar': True,  # needs alabaster 0.7.8
     'github_user': 'dhmunro',
     'github_repo': 'npplus',
-    'github_banner': True,
+    #'github_banner': True,
     'show_related': True,
     # without show_related, module pages have no links to any other page
-    # can't make these work
-    #'logo_name': True,
-    #'description': "numpy enhancements",
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -195,6 +193,16 @@ html_static_path = ['_static']
 
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
+html_sidebars = {
+    '**': [
+        'about.html',
+        'localtoc.html',
+        #'globaltoc.html',
+        #'navigation.html',
+        'relations.html',
+        'searchbox.html',
+    ]
+}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
