@@ -13,7 +13,7 @@ require a positive definite symmetric matrix.
 --------
 """
 
-from numpy import asfarray, result_type, zeros, eye, arange, roll, diag
+from numpy import asfarray, zeros, eye, arange, roll, diag
 from numpy import concatenate
 from scipy.linalg import solve_banded, solve
 
@@ -61,7 +61,7 @@ def solve_periodic(l_and_u, ab, b, overwrite_ab=False, overwrite_b=False,
        for the corner elements omitted in (1).
     """
     ab, b = asfarray(ab), asfarray(b)
-    dtype = result_type(ab, b)
+    dtype = (ab.ravel()[0] + b.ravel()[0]).dtype
     n = ab.shape[1]  # number of equations == number of unknowns
     l, u = l_and_u   # number of lower, upper diagonals
     lpu = l + u      # < n (or solve_banded will fail)

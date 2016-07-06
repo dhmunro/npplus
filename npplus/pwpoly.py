@@ -52,10 +52,9 @@ code is not adaptable.
 __all__ = ['PwPoly', 'PerPwPoly', 'spline', 'pline', 'splfit', 'plfit']
 
 from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
-from numpy import promote_types, eye, concatenate, searchsorted, einsum, roll
+from numpy import eye, concatenate, searchsorted, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
-from numpy import prod, isclose, transpose, ones_like
-from numpy import bincount, array_equal, sort
+from numpy import prod, transpose, ones_like, bincount, array_equal, sort
 from numpy.linalg import inv, eigvals
 from scipy.linalg import solve_banded, solveh_banded
 
@@ -198,7 +197,7 @@ class PwPoly(object):
         nda = args.ndim - 2  # additional dimensions of args
         if nda < 0:
             raise TypeError("yk and derivatives must be at least 1D")
-        dtype = promote_types(xk.dtype, args.dtype)
+        dtype = (xk[0] + args.ravel()[0]).dtype
         if args.shape[-1] != nk+1:
             if args.shape[-1] != nk:
                 raise TypeError("yk trailing axis inconsistent with xk size")
@@ -221,7 +220,10 @@ class PwPoly(object):
             dxn = dxn.cumprod(axis=0)  # [1, dx, dx**2, ..., dx**h]
             rght *= dxn  # normalize to 0<dx'<1
             m = self._two_sided_inverse(h)
-            rght = einsum('ij,j...->i...', m, rght)  # now h+1...2*h+1 coeffs
+            # rght = einsum('ij,j...->i...', m, rght)
+            rsh = rght.shape
+            rght = m.dot(rght.reshape(rsh[0], prod(rsh[1:], dtype=int)))
+            rght = rght.reshape(rsh)  # now h+1...2*h+1 coeffs
             dxn *= dx*dxn[-1]  # [dx**(h+1), ..., dx**(2*h+1)]
             rght *= 1./dxn
             c = concatenate((left, rght, argz))
@@ -651,7 +653,7 @@ class PwPoly(object):
                 mask = absolute(yk - xk[i]) > dx
                 mask &= absolute(yk - xk[j]) > dx
                 yk = yk[mask]
-            elif isclose(xk[0], yk[0], rtol=tol, atol=tol):
+            elif abs(xk[0]-yk[0]) <= tol + tol*abs(yk[0]):
                 continue
             xk = sort(concatenate((xk, yk)))
         return xk
@@ -885,7 +887,7 @@ def spline(x, y, n=3, lo=(), hi=(), per=False, extrap=None):
     # any way to generate other members of family with different BCs?
     # yes -- just pass 0*y and desired BCs
     x, y = asfarray(x), asfarray(y)
-    dtype = promote_types(x.dtype, y.dtype)
+    dtype = (x.ravel()[0] + y.ravel()[0]).dtype
     x, y = x.astype(dtype), y.astype(dtype)
     nk = x.size
     if x.ndim != 1 or nk < 2:

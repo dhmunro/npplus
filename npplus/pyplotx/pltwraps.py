@@ -49,7 +49,7 @@ for _ in __all__:
         # Happens in two important cases:
         # 1. Old versions of matplotlib do not have violinplot.
         # 2. ReadTheDocs uses mock matplotlib.pyplot with no names.
-        exec(_+'=None')  # otherwise "from pltwraps import *" fails
+        exec(_+'=NotImplemented')  # otherwise "from pltwraps import *" fails
 
 
 def xylim():

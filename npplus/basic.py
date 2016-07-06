@@ -25,7 +25,7 @@ Enhancements fall into several categories:
 
 4. Provide multiple argument elementwise ``min_`` and ``max_`` functions.
    Also provide a multiple argument ``abs_`` function that gives Euclidean
-   distance in multdimensional space, and expose the numpy ``norm``.
+   distance in multdimensional space.
 
 5. Combine the one and two argument arctan in a single ``atan`` function.
    In two argument mode, provides for branch cut at any angle.
@@ -35,7 +35,7 @@ Enhancements fall into several categories:
 """
 
 __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
-           'cum', 'zcen', 'pcen', 'range', 'norm']
+           'cum', 'zcen', 'pcen', 'range']
 
 import sys
 if sys.version_info < (3,):
@@ -45,8 +45,7 @@ else:
 
 from numpy import array, asanyarray, asfarray, zeros, zeros_like
 from numpy import sign, absolute, log, exp, maximum, minimum, concatenate
-from numpy import arctan, arctan2, pi, result_type
-from numpy.linalg import norm
+from numpy import arctan, arctan2, pi, sqrt
 
 
 def span(start, stop, num=100, axis=0, dtype=None):
@@ -166,9 +165,15 @@ def cat_(*args, **kwargs):
     for a in args:  # first pass collects shapes
         a = asanyarray(a)
         t = a.dtype
-        dtype = t if dtype is None else result_type(dtype, t)
+        if t.kind not in 'biufc':
+            raise ValueError("cat_ only accepts numeric arrays")
+        if dtype is None:
+            dtype = array(0, dtype=t)
+        else:
+            dtype = dtype + array(0, dtype=t)
         ndim = max(ndim, a.ndim)
         alist.append(a)
+    dtype = dtype.dtype
     if ndim < 1:
         ndim = 1
     if axis < -ndim or axis >= ndim:
@@ -218,9 +223,15 @@ def a_(*args, **kwargs):
     for a in args:  # first pass collects shapes
         a = asanyarray(a)
         t = a.dtype
-        dtype = t if dtype is None else result_type(dtype, t)
+        if t.kind not in 'biufc':
+            raise ValueError("a_ only accepts numeric arrays")
+        if dtype is None:
+            dtype = array(0, dtype=t)
+        else:
+            dtype = dtype + array(0, dtype=t)
         ndim = max(ndim, a.ndim)
         alist.append(a)
+    dtype = dtype.dtype
     if axis < -ndim-1 or axis > ndim > 0:
         raise ValueError("axis keyword is out of bounds")
     shape = array([(1,)*(ndim-a.ndim)+a.shape for a in alist])
@@ -250,16 +261,20 @@ def min_(a, *args):
 
 
 def abs_(a, *args):
-    """Return elementwise 2-norm of any number of array-like arguments."""
+    """Return elementwise 2-norm of any number of array-like arguments.
+
+    See Also
+    --------
+    numpy.linalg.norm : norm along one axis of a single array
+    """
     if not args:
         return absolute(a)
     # note this does more sqrt operations than needed
     # problem with summing squares is overflow/underflow at half range
     # problem with normalizing is lots of elementwise logic and that
     #    the divides are about as expensive as sqrts
-    for b in args:
-        a = norm((a, b), axis=0)
-    return a
+    a = a_(a, *args)
+    return sqrt((a.conj() * a).sum(axis=0))
 
 
 def atan(a, b=None, out=None, branch=None):
