@@ -52,9 +52,25 @@ for _ in __all__:
         exec(_+'=NotImplemented')  # otherwise "from pltwraps import *" fails
 
 
-def xylim():
-    """Set xmin, xmax, ymin, ymax limits for the current axes, return None."""
-    plt.axis()
+def xylim(xmin=None, xmax=None, ymin=None, ymax=None):
+    """Set xmin, xmax, ymin, ymax limits for the current axes, return None.
+
+    Parameters
+    ----------
+    xmin,xmax,ymin,ymax : float, optional
+        Axis limit or None to leave unchanged.
+
+    See Also
+    --------
+    matplotlib.pyplot.axis : get or set limits for current axes
+
+    Notes
+    -----
+    The `xylim` function avoids the need for passing a tuple to `axis`,
+    and has no return value, to avoid printing a value.  It is strictly
+    a convenience function for interactive use; use `axis` in scripts.
+    """
+    plt.axis(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
 
 def logxy(islog=None, islogy=Ellipsis):
