@@ -12,6 +12,9 @@ Put this in your PYTHONSTARTUP file::
     # uncomment to get inward ticks and box
     #style_npp(box=True)
 
+You do not need to import ``npplus.interactive`` if you import
+``npplus.pyplotx.interactive``, it will be done automatically.
+
 --------
 """
 

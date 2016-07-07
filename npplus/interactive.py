@@ -56,6 +56,12 @@ if sys.version_info >= (3,):
 def reloadx(module):
     """Shorthand for ``reload(module); from module import *``.
 
+    Also injects symbol `my` into the module namespace, with value
+    equal to the `__main__` module.  This is useful for interactive
+    debugging with pdb.
+
+    Notes
+    -----
     To interactively develop a module, do this::
 
         # You may want to softlink 'ln -s /path/to/module_or_package .'
@@ -69,8 +75,23 @@ def reloadx(module):
         reloadx(module)  # reload module and re-import its symbols
         # be sure to recreate any objects constructed from modified classes
         # loop debug, edit, reloadx
+
+    The `my` debugging feature will only work if `module` is really a
+    module, not a package; usually it should be the specific module you are
+    debugging.  After ``reloadx(module)`` you can do things like this from
+    the pdb prompt::
+
+        (Pdb) my.plot(x, y)
+        (Pdb) my.savexy = (x, y)
+
+    In the latter case, after you quit pdb, the variable `savexy` will be
+    present in your top level interactive namespace.  Anything that is
+    available in your interactive namespace will be available through the
+    `my` variable in your pdb debugging session.
     """
     reload(module)
     import __main__
     for nm in vars(module):
-        setattr(__main__, nm, getattr(module, nm))
+        setattr(__main__, nm, getattr(module, nm))  # emulate import *
+    if not hasattr(module, 'my'):
+        module.__dict__['my'] = __main__
