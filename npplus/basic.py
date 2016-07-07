@@ -72,8 +72,8 @@ def span(start, stop, num=100, axis=0, dtype=None):
     See Also
     --------
     spanl : equal ratio (log) spacing
-    np.linspace : standard numpy function
-    np.arange : standard numpy function
+    numpy.linspace : standard numpy function
+    numpy.arange : standard numpy function
     """
     start, stop = asfarray(start), asfarray(stop)
     shape = zeros_like(start + stop)
@@ -119,7 +119,7 @@ def spanl(start, stop, num=100, axis=0, dtype=None):
     See Also
     --------
     span : equal difference (linear) spacing
-    np.logspace : standard numpy function
+    numpy.logspace : standard numpy function
     """
     start, stop = asfarray(start), asfarray(stop)
     s, start = sign(start), absolute(start)
@@ -344,8 +344,8 @@ def cum(a, axis=-1):
 
     See Also
     --------
-    np.cumsum : same except missing leading 0
-    np.diff : pairwise differences
+    numpy.cumsum : same except missing leading 0
+    numpy.diff : pairwise differences
     zcen : pairwise means
 
     Examples
@@ -399,7 +399,7 @@ def zcen(a, axis=-1):
 
     See Also
     --------
-    np.diff : pairwise differences
+    numpy.diff : pairwise differences
     cum : cumulative sums starting from 0
     pcen : point center
 
@@ -444,7 +444,7 @@ def pcen(a, axis=-1):
 
     See Also
     --------
-    np.diff : pairwise differences
+    numpy.diff : pairwise differences
     zcen : zone center
 
     Examples
