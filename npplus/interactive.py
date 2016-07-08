@@ -92,6 +92,7 @@ def reloadx(module):
     reload(module)
     import __main__
     for nm in vars(module):
-        setattr(__main__, nm, getattr(module, nm))  # emulate import *
+        if not (nm.startswith('__') and nm.endswith('__')):
+            setattr(__main__, nm, getattr(module, nm))  # emulate import *
     if not hasattr(module, 'my'):
         module.__dict__['my'] = __main__
