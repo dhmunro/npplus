@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
+# python setup.py sdist bdist_wheel --universal
+
 from __future__ import print_function
 #from distutils.core import setup
 from setuptools import setup
 
 setup(name='npplus',
-      version='0.9.2',
+      version='0.9.4',
       description='Enhancements to Numpy',
       long_description=open('README.md').read(),
       author='David H. Munro',
