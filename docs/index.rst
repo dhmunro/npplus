@@ -28,6 +28,7 @@ Summary
     pwpoly
     lsqfit
     pcwise
+    randomx
     fermi
     solveper
     interactive

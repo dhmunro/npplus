@@ -2,7 +2,7 @@
 # All rights reserved.
 # This is Open Source software, released under the BSD 2-clause license,
 # see http://opensource.org/licenses/BSD-2-Clause for details.
-"""Generate random random points in and on circles and spheres.
+"""Generate random random points and rotations in and on circles and spheres.
 
 These functions are consistent with the numpy.random random(size)
 interface, in order to be compatible with the numerous other random
@@ -27,12 +27,12 @@ from numpy import concatenate, newaxis, roll, transpose, prod
 #   sin, cos       4700, 4080
 #   exp, expm1     4860, 4580
 #   log, log1p     6210, 4250
-#   standard_normal  8000 (3.9 random)
+#   standard_normal  8000 (3.9 * random)
 
-#   oncircle      17700   (8.6 random)
-#   incircle      15100   (7.3 random)
-#   onsphere      25000  (12.1 random)
-#   insphere      27000  (13.0 random)
+#   oncircle      17700   (8.6 * random)
+#   incircle      15100   (7.3 * random)
+#   onsphere      25000  (12.1 * random)
+#   insphere      27000  (13.0 * random)
 #   rotation3     52800
 
 
@@ -46,7 +46,7 @@ def incircle(size=None):
 
     Returns
     -------
-    ndarray
+    xy : ndarray
         The random points inside the unit circle, trailing dimension 2.
     """
     if size is None:
@@ -92,7 +92,7 @@ def oncircle(size=None):
 
     Returns
     -------
-    ndarray
+    xy : ndarray
         The random points on the unit circle, trailing dimension 2.
     """
     if size is None:
@@ -118,8 +118,8 @@ def insphere(size=None):
 
     Returns
     -------
-    ndarray
-        The random points inside the unit sphere.
+    xyz : ndarray
+        The random points inside the unit sphere, trailing dimension 3.
     """
     if size is None:
         size = ()
@@ -157,7 +157,7 @@ def insphere(size=None):
 
 
 def onsphere(size=None):
-    """Return uniform random points inside 3D unit sphere.
+    """Return uniform random points on 3D unit sphere.
 
     Parameters
     ----------
@@ -166,8 +166,8 @@ def onsphere(size=None):
 
     Returns
     -------
-    ndarray
-        The random points inside the unit sphere.
+    xyz : ndarray
+        The random points on the unit sphere, trailing dimension 3.
     """
     xy = oncircle(size)
     z = 2.*random(xy.shape[:-1] + (1,)) - 1.
@@ -175,21 +175,17 @@ def onsphere(size=None):
     return concatenate((xy, z), axis=-1)
 
 
-def rotation3(size=None, source=random):
+def rotation3(size=None):
     """Return a collection of 3x3 random rotation matrices.
 
     Parameters
     ----------
     size : int or tuple of int, optional
         The number or leading dimensions of the 3x3 matrices returned.
-    source : function(size)
-        Source of uniform random numbers between 0 and 1.  Default is
-        numpy.random.random.  The `size` argument will always be a tuple
-        beginning with (3,1).
 
-    Results
+    Returns
     -------
-    ndarray
+    rotmat : ndarray
         A single 3x3 rotation matrix (that is, three orthogonal unit vectors
         in right-hand order) if `size` not given.  Otherwise the dimensions
         specified by `size` are the leading dimensions of the collection of
@@ -203,12 +199,9 @@ def rotation3(size=None, source=random):
     the surface of a sphere.
 
     Uses the Arvo algorithm from Graphics Gems III.
-    See http://www.realtimerendering.com/resources/GraphicsGems/gemsiii/
-               rand_rotation.c
-    and http://citeseerx.ist.psu.edu/viewdoc/
-               download?doi=10.1.1.53.1357&rep=rep1&type=pdf
-    and https://en.wikipedia.org/wiki/Rotation_matrix
-                #Uniform_random_rotation_matrices
+    See http://www.realtimerendering.com/resources/GraphicsGems/gemsiii/rand_rotation.c
+    and http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.53.1357&rep=rep1&type=pdf
+    and https://en.wikipedia.org/wiki/Rotation_matrix#Uniform_random_rotation_matrices
 
     """
     if size is None:
@@ -218,7 +211,7 @@ def rotation3(size=None, source=random):
             size = tuple(size)
         except TypeError:
             size = (size,)
-    theta, phi, z = 2. * source((3,1) + size)
+    theta, phi, z = 2. * random((3, 1) + size)
     theta *= pi  # Initial rotation angle about z-axis.
     phi *= pi  # Angle in xy plane for tilt of z-axis.
     # Magnitude of tilt is random variable z.
@@ -237,21 +230,21 @@ def rotation3(size=None, source=random):
     return m
 
 # literal transcription of Graphics Gems III rand_rotation.c for testing
-#from numpy import ones, zeros, array
-#def croutine(x):
-#    theta, phi, z = 2.*pi*x[0], 2.*pi*x[1], 2.*x[2]
-#    r = sqrt(z)
-#    vx, vy, vz = r*sin(phi), r*cos(phi), sqrt(2.-z)
-#    st, ct = sin(theta), cos(theta)
-#    sx, sy = vx*ct - vy*st, vx*st + vy*ct
-#    m = zeros((3,3,)+x.shape[1:])
-#    m[0, 0] = vx*sx - ct
-#    m[0, 1] = vx*sy - st
-#    m[0, 2] = vx*vz
-#    m[1, 0] = vy*sx + st
-#    m[1, 1] = vy*sy - ct
-#    m[1, 2] = vy*vz
-#    m[2, 0] = vz*sx
-#    m[2, 1] = vz*sy
-#    m[2, 2] = 1. - z
-#    return m
+# from numpy import ones, zeros, array
+# def croutine(x):
+#     theta, phi, z = 2.*pi*x[0], 2.*pi*x[1], 2.*x[2]
+#     r = sqrt(z)
+#     vx, vy, vz = r*sin(phi), r*cos(phi), sqrt(2.-z)
+#     st, ct = sin(theta), cos(theta)
+#     sx, sy = vx*ct - vy*st, vx*st + vy*ct
+#     m = zeros((3,3,)+x.shape[1:])
+#     m[0, 0] = vx*sx - ct
+#     m[0, 1] = vx*sy - st
+#     m[0, 2] = vx*vz
+#     m[1, 0] = vy*sx + st
+#     m[1, 1] = vy*sy - ct
+#     m[1, 2] = vy*vz
+#     m[2, 0] = vz*sx
+#     m[2, 1] = vz*sy
+#     m[2, 2] = 1. - z
+#     return m
