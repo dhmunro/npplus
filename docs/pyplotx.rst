@@ -23,4 +23,4 @@ npplus.pyplotx.mpldefaults module
 ---------------------------------
 
 .. automodule:: npplus.pyplotx.mpldefaults
-    :members:
+    :members: CBQ, style_npp

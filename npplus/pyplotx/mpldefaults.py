@@ -50,14 +50,15 @@ def style_npp(box=None):
     Notes
     -----
     Other features are:
+
     *  Matplotlib 2.0 viridis colormap becomes default.
     *  Color cycle for plot lines derived from ColorBrewer Set1.
     *  Heavier lines and larger axis numbering.
     *  Images displayed with imshow do not change aspect ratio of axes.
     *  The savefig command set up to not clip axis labels or title.
     *  The background of figure and axes differ more subtlely on screen.
-    """
 
+    """
     # Make viridis the default colormap.
     rc('image', cmap='viridis')
 
