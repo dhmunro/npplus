@@ -35,7 +35,7 @@ Enhancements fall into several categories:
 """
 
 __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
-           'cum', 'zcen', 'pcen', 'range']
+           'cum', 'zcen', 'pcen', 'range', 'ADict']
 
 import sys
 if sys.version_info < (3,):
@@ -473,3 +473,117 @@ def pcen(a, axis=-1):
     return concatenate((a[tuple(s1)],
                         (a[tuple(slice1)] + a[tuple(slice2)]) * 0.5,
                         a[tuple(s2)]), axis=axis)
+
+
+class ADict(object):
+    """Wrapper for dict allowing access by attributes.
+
+    This is a convenience for interactive use, so that you can use
+    ``d.name`` as a synonym for ``d['name']``.  The ordinary dict
+    methods are missing to avoid colliding with item names; the
+    only exception is the `keys` method (which distinguishes mappings
+    from sequences).
+
+    In order to handle the item names `keys` and python reserved words
+    like `yield` or `class`, you may append an underscore to any item
+    name when you reference it as an attribute, and it will refer to
+    the same item.  Thus, ``d.class_`` refers to ``d['class']``, and
+    ``d.x_`` and ``d.x`` both refer to ``d['x']``.  This means you
+    need to write ``d.x__`` to refer to ``d['x_']`` as an attribute.
+    (The trailing underscore convention is taken from PEP8, which
+    recommends it for variable names.)  You cannot access item names
+    beginning with double underscore as attributes.
+
+    Parameters
+    ----------
+    d : dict
+        If intialized with a single dict argument, an `ADict` will
+        wrap the given dict, so that changes made to the `ADict`
+        instance will be reflected in the original dict.
+    other : various
+        Otherwise, `ADict` accepts the same arguments as `dict`,
+        and will wrap a newly created dict initialized with those
+        arguments.
+
+    Notes
+    -----
+    If `ad` is an `ADict` instance, use ``ad.__dict__`` to access all
+    of the usual dict methods like update, get, pop, etc.
+
+    An `ADict` instance `ad` acts like the underlying dict for ``len(ad)``,
+    ``name in ad``, ``for name in ad:``, and ``ad.keys()``.
+
+    `ADict` is designed to be used as a base class for any class you
+    want to behave like both a dict and an object-instance as far as
+    item/attribute access.  If your derived class must override the
+    access methods, override only `__getitem__`, `__setitem__`, and
+    `__delitem__`, rather than `__getattr__`, etc.
+
+    ADict is strictly a convenience for objects designed for direct
+    interactive use; an ordinary dict or object is better for internal
+    interfaces.
+
+    """
+    __slots__ = ['__dict__']
+
+    def __init__(self, *args, **kwargs):
+        if not kwargs and len(args)==1 and isinstance(args[0], dict):
+            ADict.__dict__['__dict__'].__set__(self, args[0])
+        else:
+            ADict.__dict__['__dict__'].__set__(self, dict(*args, **kwargs))
+
+    def keys(self):
+        """Invoke `keys` method of underlying dict."""
+        return ADict.__dict__['__dict__'].__get__(self).keys()
+
+    def __getattr__(self, name):
+        """Get item of dict after stripping single trailing _ if present."""
+        if name == '__dict__':
+            return ADict.__dict__['__dict__'].__get__(self)
+        if name.endswith('_'):
+            name = name[:-1]
+        return self[name]
+
+    def __setattr__(self, name, value):
+        """Set item of dict after stripping single trailing _ if present."""
+        if name in ['keys', '__dict__']:
+            raise ValueError("Illegal set attribute name.")
+        if name.endswith('_'):
+            name = name[:-1]
+        self[name] = value
+
+    def __delattr__(self, name):
+        """Delete item of dict after stripping single trailing _ if present."""
+        if name in ['keys', '__dict__']:
+            raise ValueError("Illegal delete attribute name.")
+        if name.endswith('_'):
+            name = name[:-1]
+        del self[name]
+
+    def __getitem__(self, key):
+        return ADict.__dict__['__dict__'].__get__(self)[key]
+
+    def __setitem__(self, key, value):
+        ADict.__dict__['__dict__'].__get__(self)[key] = value
+
+    def __delitem__(self, key):
+        del ADict.__dict__['__dict__'].__get__(self)[key]
+
+    def __len__(self):
+        return len(ADict.__dict__['__dict__'].__get__(self))
+
+    def __iter__(self):
+        return iter(ADict.__dict__['__dict__'].__get__(self))
+
+    def __contains__(self, key):
+        return key in ADict.__dict__['__dict__'].__get__(self)
+
+    def __repr__(self):
+        return (self.__class__.__name__ + '('
+                + repr(ADict.__dict__['__dict__'].__get__(self)) + ')')
+
+    def __getstate__(self):
+        return ADict.__dict__['__dict__'].__get__(self)
+
+    def __setstate__(self, state):
+        ADict.__dict__['__dict__'].__set__(self, state)
