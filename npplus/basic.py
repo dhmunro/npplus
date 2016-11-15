@@ -524,30 +524,28 @@ class ADict(object):
     interfaces.
 
     """
-    __slots__ = ['__dict__']
-
     def __init__(self, *args, **kwargs):
-        if not kwargs and len(args)==1 and isinstance(args[0], dict):
-            ADict.__dict__['__dict__'].__set__(self, args[0])
-        else:
-            ADict.__dict__['__dict__'].__set__(self, dict(*args, **kwargs))
+        self.__dict__.update(*args, **kwargs)
 
     def keys(self):
         """Invoke `keys` method of underlying dict."""
-        return ADict.__dict__['__dict__'].__get__(self).keys()
+        return self.__dict__.keys()
 
-    def __getattr__(self, name):
+    def __getattribute__(self, name):
         """Get item of dict after stripping single trailing _ if present."""
-        if name == '__dict__':
-            return ADict.__dict__['__dict__'].__get__(self)
+        # __getattr__ never called for items in __dict__
+        # x.keys() always works, x.keys_ gives x['keys']
+        if name == 'keys':  # bind unbound keys method
+            return ADict.keys.__get__(self, self.__class__)
+        if (len(name)>4 and name.startswith('__') and name.endswith('__')
+            and not name.endswith('___')):
+            return object.__getattribute__(self, name)
         if name.endswith('_'):
             name = name[:-1]
         return self[name]
 
     def __setattr__(self, name, value):
         """Set item of dict after stripping single trailing _ if present."""
-        if name in ['keys', '__dict__']:
-            raise ValueError("Illegal set attribute name.")
         if name.endswith('_'):
             name = name[:-1]
         self[name] = value
@@ -561,29 +559,28 @@ class ADict(object):
         del self[name]
 
     def __getitem__(self, key):
-        return ADict.__dict__['__dict__'].__get__(self)[key]
+        return self.__dict__[key]
 
     def __setitem__(self, key, value):
-        ADict.__dict__['__dict__'].__get__(self)[key] = value
+        self.__dict__[key] = value
 
     def __delitem__(self, key):
-        del ADict.__dict__['__dict__'].__get__(self)[key]
+        del self.__dict__[key]
 
     def __len__(self):
-        return len(ADict.__dict__['__dict__'].__get__(self))
+        return len(self.__dict__)
 
     def __iter__(self):
-        return iter(ADict.__dict__['__dict__'].__get__(self))
+        return iter(self.__dict__)
 
     def __contains__(self, key):
-        return key in ADict.__dict__['__dict__'].__get__(self)
+        return key in self.__dict__
 
     def __repr__(self):
-        return (self.__class__.__name__ + '('
-                + repr(ADict.__dict__['__dict__'].__get__(self)) + ')')
+        return (self.__class__.__name__ + '(' + repr(self.__dict__) + ')')
 
     def __getstate__(self):
-        return ADict.__dict__['__dict__'].__get__(self)
+        return self.__dict__
 
     def __setstate__(self, state):
-        ADict.__dict__['__dict__'].__set__(self, state)
+        self.__dict__.update(state)
