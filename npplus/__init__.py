@@ -104,6 +104,10 @@
     ``pcen(x)``, see :func:`npplus.basic.pcen`
         ``zcen``, but copy endpoints
 
+*   An attribute-dict class :class:`npplus.basic.ADict`.  An `ADict`
+    instance `ad` is a mapping whose items can be accessed either
+    as items ``ad[name]`` or as attributes ``ad.name``.
+
 *   A :func:`npplus.interactive.reloadx` function to simplify debugging
     a module in an interactive session.  Your workflow becomes a loop
     of edit source, `reloadx`, and `pdb` run or post-mortem without

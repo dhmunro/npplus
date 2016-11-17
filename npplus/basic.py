@@ -35,7 +35,7 @@ Enhancements fall into several categories:
 """
 
 __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
-           'cum', 'zcen', 'pcen', 'range', 'ADict']
+           'cum', 'zcen', 'pcen', 'range', 'ADict', 'adict_attribs']
 
 import sys
 if sys.version_info < (3,):
@@ -475,14 +475,64 @@ def pcen(a, axis=-1):
                         a[tuple(s2)]), axis=axis)
 
 
-class ADict(object):
-    """Wrapper for dict allowing access by attributes.
+def adict_attribs(specials=None):
+    """Decorator for ADict subclasses.
 
-    This is a convenience for interactive use, so that you can use
-    ``d.name`` as a synonym for ``d['name']``.  The ordinary dict
-    methods are missing to avoid colliding with item names; the
-    only exception is the `keys` method (which distinguishes mappings
-    from sequences).
+    A method `meth` of an ordinary object instance `obj` may be accessed as
+    an attribute ``obj.meth(args)``, even thought `meth` is really an
+    attribute of the class, not the instance.  However, for an ADict
+    instance `ad`, ``ad.meth`` refers to the (possibly undefined) instance
+    attribute `meth`, equivalent to ``ad['meth']``.  Methods beginning and
+    ending with double underscore are an exception to this rule -- those
+    methods or attributes of any ADict work normally, so ``ad.__dict__``
+    or ``ad.__len__()`` work as you expect.  For an instance of the ADict
+    base class, there is exactly one other exception: ``ad.keys()`` works
+    as for an ordinary dict.
+
+    For subclasses, `keys` will also be the only special non-double
+    underscore method, unless you use the adict_attribs decorator when
+    you define the subclass::
+
+        @adict_attribs()
+        class MyAttributeDict(ADict):
+            ...
+
+    Parameters
+    ----------
+    specials : sequence of str, optional
+        The names of the class attributes you wish to expose as for
+        ordinary objects.  You must include `keys` in this list if you
+        wish to expose it.  Any names beginning and ending with double
+        underscore are ignored, since they are always exposed.  The
+        default is ``dir(the_class)``, that is, all the methods or
+        attributes defined by the class or its base classes (which will
+        always include `keys`).
+
+    See Also
+    --------
+    ADict : dict whose items are accessible as attributes
+
+    """
+    def decorator(cls):
+        specs = dir(cls) if specials is None else specials
+        specs = [s for s in specs if s[:2]!='__' or s[-2:]!='__']
+        d = {}
+        for s in specs:
+            obj = getattr(cls, s)
+            d[s] = hasattr(obj, '__get__')
+        cls.___ADict_specials___ = d
+        return cls
+    return decorator
+
+
+@adict_attribs()
+class ADict(object):
+    """Dict-like object that allows items to be accessed as attributes.
+
+    This is a convenience for interactive use, so that ``d.name`` is a
+    synonym for ``d['name']``.  The ordinary dict methods are missing
+    to avoid colliding with item names; the only exception is the
+    `keys` method (which distinguishes mappings from sequences).
 
     In order to handle the item names `keys` and python reserved words
     like `yield` or `class`, you may append an underscore to any item
@@ -491,36 +541,42 @@ class ADict(object):
     ``d.x_`` and ``d.x`` both refer to ``d['x']``.  This means you
     need to write ``d.x__`` to refer to ``d['x_']`` as an attribute.
     (The trailing underscore convention is taken from PEP8, which
-    recommends it for variable names.)  You cannot access item names
-    beginning with double underscore as attributes.
+    recommends it for variable names.)
+
+    You cannot access item names beginning and ending with double
+    underscore as attributes.  Nor can you access as attributes items
+    with non-string keys, keys which are decimal numbers or which
+    contain punctuation characters.
 
     Parameters
     ----------
-    d : dict
-        If intialized with a single dict argument, an `ADict` will
-        wrap the given dict, so that changes made to the `ADict`
-        instance will be reflected in the original dict.
-    other : various
-        Otherwise, `ADict` accepts the same arguments as `dict`,
-        and will wrap a newly created dict initialized with those
-        arguments.
+    args : various
+        `ADict` accepts the same arguments and keyword arguments as
+        `dict`, and will wrap a newly created dict initialized with
+        those arguments.
+
+    See Also
+    --------
+    adict_attribs : Decorator to assist subclassing ADict
 
     Notes
     -----
     If `ad` is an `ADict` instance, use ``ad.__dict__`` to access all
     of the usual dict methods like update, get, pop, etc.
 
-    An `ADict` instance `ad` acts like the underlying dict for ``len(ad)``,
-    ``name in ad``, ``for name in ad:``, and ``ad.keys()``.
+    An `ADict` instance `ad` acts like the underlying dict for
+    ``len(ad)``, ``name in ad``, ``for name in ad:``, ``ad.keys()``.
 
     `ADict` is designed to be used as a base class for any class you
     want to behave like both a dict and an object-instance as far as
     item/attribute access.  If your derived class must override the
     access methods, override only `__getitem__`, `__setitem__`, and
-    `__delitem__`, rather than `__getattr__`, etc.
+    `__delitem__`; do not override `__getattr__`, etc.  You can use
+    the `adict_attribs` class decorator if you want derived class
+    methods or attributes other than `keys` to be visible.
 
-    ADict is strictly a convenience for objects designed for direct
-    interactive use; an ordinary dict or object is better for internal
+    `ADict` is strictly a convenience for objects designed for direct
+    interactive use; use an ordinary dict or object for internal
     interfaces.
 
     """
@@ -534,26 +590,34 @@ class ADict(object):
     def __getattribute__(self, name):
         """Get item of dict after stripping single trailing _ if present."""
         # __getattr__ never called for items in __dict__
-        # x.keys() always works, x.keys_ gives x['keys']
-        if name == 'keys':  # bind unbound keys method
-            return ADict.keys.__get__(self, self.__class__)
-        if (len(name)>4 and name.startswith('__') and name.endswith('__')
-            and not name.endswith('___')):
+        if (name[:2]=='__' and name[-2:]=='__'):
             return object.__getattribute__(self, name)
+        # x.keys() always works, x.keys_ gives x['keys']
+        cls = self.__class__
+        special = getattr(cls, '___ADict_specials___').get(name)
+        if special is not None:
+            if special:
+                return getattr(cls, name).__get__(self, cls)
+            else:
+                return getattr(cls, name)
         if name.endswith('_'):
             name = name[:-1]
         return self[name]
 
     def __setattr__(self, name, value):
         """Set item of dict after stripping single trailing _ if present."""
+        if ((name[:2]=='__' and name[-2:]=='__') or
+            name in getattr(self.__class__, '___ADict_specials___')):
+            raise AttributeError("illegal set attribute name: "+name)
         if name.endswith('_'):
             name = name[:-1]
         self[name] = value
 
     def __delattr__(self, name):
         """Delete item of dict after stripping single trailing _ if present."""
-        if name in ['keys', '__dict__']:
-            raise ValueError("Illegal delete attribute name.")
+        if ((name[:2]=='__' and name[-2:]=='__') or
+            name in getattr(self.__class__, '___ADict_specials___')):
+            raise AttributeError("illegal del attribute name: "+name)
         if name.endswith('_'):
             name = name[:-1]
         del self[name]
