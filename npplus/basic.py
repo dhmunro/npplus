@@ -584,7 +584,11 @@ class ADict(object):
         mods = [name for name in kwargs if name.endswith('_')]
         for name in mods:
             kwargs[name[:-1]] = kwargs.pop(name)
-        self.__dict__.update(*args, **kwargs)
+        # Use setitem rather than __dict__.update so this __init__
+        # works for subclasses that override setitem.
+        kwargs = dict(*args, **kwargs)
+        for name in kwargs:
+            self[name] = kwargs[name]
 
     def keys(self):
         """Invoke `keys` method of underlying dict."""
