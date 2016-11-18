@@ -42,17 +42,6 @@ for mod_name in MOCK_MODULES:
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, os.path.abspath('..'))
 
-print("--------------")
-print(sys.path)
-print("--------------")
-try:
-    import npplus
-except ImportError:
-    print("FAILED to import npplus")
-else:
-    print("SUCCEEDED in importing npplus")
-print("--------------")
-
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
