@@ -581,6 +581,9 @@ class ADict(object):
 
     """
     def __init__(self, *args, **kwargs):
+        mods = [name for name in kwargs if name.endswith('_')]
+        for name in mods:
+            kwargs[name[:-1]] = kwargs.pop(name)
         self.__dict__.update(*args, **kwargs)
 
     def keys(self):
