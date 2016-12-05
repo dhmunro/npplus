@@ -32,10 +32,7 @@ bytes = __builtins__['bytes']
 np.seterr(divide='raise', over='raise', invalid='raise')
 
 # give interpreted access to npplus modules
-from .basic import *
-from .pwpoly import *
-from .pcwise import *
-from .lsqfit import *
+from . import *
 
 # implement deprecated execfile for python3
 if sys.version_info >= (3,):

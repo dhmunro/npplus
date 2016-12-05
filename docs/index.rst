@@ -26,6 +26,7 @@ Summary
 
     basic
     pwpoly
+    itemattr
     lsqfit
     pcwise
     randomx

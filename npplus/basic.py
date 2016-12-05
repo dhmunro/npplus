@@ -35,7 +35,7 @@ Enhancements fall into several categories:
 """
 
 __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
-           'cum', 'zcen', 'pcen', 'range', 'ADict', 'adict_attribs']
+           'cum', 'zcen', 'pcen', 'range']
 
 import sys
 if sys.version_info < (3,):
