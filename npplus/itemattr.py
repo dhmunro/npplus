@@ -13,6 +13,20 @@ attribute.
 
 Provides class `ADict` which wraps the builtin dict type in this way.
 
+References
+----------
+
+See
+http://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute-in-python
+for a good discussion which mentions the following three relatively
+small python packages that implement attribute-accessible dicts:
+
+https://github.com/dsc/bunch  (combines object __dict__ with dict superclass)
+
+https://github.com/bcj/AttrDict  (inherits from dict and other classes)
+
+https://github.com/mewwts/addict  (focuses on recursive setattr)
+
 --------
 
 """
