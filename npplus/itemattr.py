@@ -13,10 +13,6 @@ attribute.
 
 Provides class `ADict` which wraps the builtin dict type in this way.
 
-Provides class `ADDict` which is like `ADict` except that a missing
-attribute is initialized to an empty `ADDict` instance, so you can easily
-define nested dicts with ``x.a.b.c = value``.
-
 References
 ----------
 
@@ -44,7 +40,7 @@ https://github.com/mewwts/addict  (focuses on recursive setattr)
 from functools import partial
 import sys
 
-__all__ = ['items_are_attrs', 'ADict', 'ADDict', 'redict']
+__all__ = ['items_are_attrs', 'ADict', 'redict']
 
 
 class ItemsAreAttrs(object):
@@ -55,17 +51,22 @@ class ItemsAreAttrs(object):
     # want to customize this.
     @staticmethod
     def name2key(name):
-        if not name.endswith('_') or name.startswith('__'):
-            return name
-        return name[:-1]
+        return name[:-1] if name.endswith('_') else name
 
-    def get(self, name):
+    def get(self, name):  # __getattribute__
+        if (name.startswith('__') or
+            name in object.__getattribute__(self, '_IAA_class_attrs_')):
+            return object.__getattribute__(self, name)
         return self[ItemsAreAttrs.name2key(name)]
 
-    def set(self, name, value):
+    def set(self, name, value):  # __setattr__
+        if name.startswith('__'):
+            raise ValueError("cannot access __-prefixed item as attribute")
         self[ItemsAreAttrs.name2key(name)] = value
 
-    def delete(self, name):
+    def delete(self, name):  # __delattr__
+        if name.startswith('__'):
+            raise ValueError("cannot access __-prefixed item as attribute")
         del self[ItemsAreAttrs.name2key(name)]
 
     @property
@@ -73,7 +74,7 @@ class ItemsAreAttrs(object):
         """Return __dict__ as an ADict.  Primarily for self._ish.attrib."""
         d = object.__getattribute__(self, '__dict__')
         if d.__class__ is not ADict:
-            d = ADict(d)
+            d = ADict(d)  # convert __dict__ to ADict on first access
             object.__setattr__(self, '__dict__', d)
         return d
 
@@ -163,9 +164,14 @@ def items_are_attrs(cls=None, methods=ItemsAreAttrs, ish=False):
         cls, methods = None, methods
     if cls is None: 
         return partial(items_are_attrs, methods=methods, ish=ish)
+    # set class attribute names for __getattribute__
+    names = [n for n in dir(cls) if not n.startswith('__')]
+    if ish and '_ish' not in names:
+        names.append('_ish')
+    cls._IAA_class_attrs_ = set(names) if len(names) > 4 else names
     # methods.name would call methods.name.__get__(...), incorrectly
     # making the name function an unbound method of methods, so:
-    cls.__getattr__ = methods.__dict__['get']
+    cls.__getattribute__ = methods.__dict__['get']
     cls.__setattr__ = methods.__dict__['set']
     cls.__delattr__ = methods.__dict__['delete']
     if ish:
@@ -173,7 +179,6 @@ def items_are_attrs(cls=None, methods=ItemsAreAttrs, ish=False):
     return cls
 
 
-@items_are_attrs
 class ADict(dict):
     """Subclass of dict permitting access to items as if they were attributes.
 
@@ -217,81 +222,47 @@ class ADict(dict):
     See Also
     --------
     items_are_attrs : class decorator to provide this for any class
-    ADDict : ADict-like class for easy initialization of nested dicts
-    redict : recursively toggle between dict and ADDict or ADict
+    redict : recursively toggle between dict and ADict
 
     """
     __slots__ = []
+
+    def __getattr__(self, name):
+        return self[ItemsAreAttrs.name2key(name)]
+
+    def __setattr__(self, name, value):
+        self[ItemsAreAttrs.name2key(name)] = value
+
+    def __delattr__(self, name):
+        del self[ItemsAreAttrs.name2key(name)]
 
     def __repr__(self):
         return "ADict(" + super(ADict, self).__repr__() + ")"
 
 
-@items_are_attrs
-class ADDict(dict):
-    """Subclass of dict permitting access to items as if they were attributes.
-
-    An ADDict is like an ADict, except that if you attempt to get a
-    missing attribute, it will be initialized to an empty ADDict
-    instance.  The only reason to use an ADDict is to be able to easily
-    initialize nested dicts::
-
-        x = ADDict()
-        x.a = 'top level'
-        x.b.one = 'second level item 1'
-        x.b.two = 'second level item 2'
-        x.b.c.yow = 'third level item'
-        # instead of this:
-        x = {'a': 'top level',
-             'b': {'one': 'second level item 1',
-                   'two': 'second level item 2',
-                   'c': {'yow': 'third level item'}}}
-
-    See Also
-    --------
-    redict : recursively toggle between dict and ADDict or ADict
-    ADict : basic items-as-attributes dict
-    items_are_attrs : class decorator to provide this for any class
-
-    References
-    ----------
-    This class behaves like a stripped down version of the addict package
-    at https://github.com/mewwts/addict .
-
-    """
-    __slots__ = []
-
-    def __repr__(self):
-        return "ADDict(" + super(ADDict, self).__repr__() + ")"
-
-    def __missing__(self, key):
-        self[key] = value = ADDict()
-        return value
-
-
 def redict(d, cls=None):
-    """Recursively convert a nested dict to an ADDict or ADict instance.
+    """Recursively convert a nested dict to a nested ADict.
 
     Parameters
     ----------
-    d : dict or ADDict or ADict instance
+    d : dict or ADict instance
         A dict, possibly nested, to be converted.
     cls : dict or subclass of dict, optional
         The dict-like cls to recursively convert `d` and any sub-dicts
-        into.  By default, if `d` is an `ADDict` or `ADict`, `cls` is
-        `dict`, otherwise `cls` is `ADDict`, so repeated calls to
-        `redict` toggle between `dict` and `ADDict`.
+        into.  By default, if `d` is an `ADict`, `cls` is `dict`,
+        otherwise `cls` is `ADict`, so repeated calls to `redict` toggle
+        between `dict` and `ADict`.
 
     Returns
     -------
-    dnew : dict or ADDict or ADict instance
+    dnew : dict or ADict
         A copy of `d` whose class is `cls`.  Any items which are dict
         instances are similarly copied to be `cls` instances.  Non-dict
         items are not copied unless assignment makes copies.
     
     """
     if cls is None:
-        cls = dict if d.__class__ in (ADict, ADDict) else ADDict
+        cls = dict if isinstance(ADict) else ADict
     dnew = cls(d)
     for key, value in _iteritems(d):
         if isinstance(value, dict):
