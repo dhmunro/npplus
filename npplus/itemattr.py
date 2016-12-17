@@ -69,17 +69,8 @@ class ItemsAreAttrs(object):
             raise ValueError("cannot access __-prefixed item as attribute")
         del self[ItemsAreAttrs.name2key(name)]
 
-    @property
-    def _ish(self):
-        """Return __dict__ as an ADict.  Primarily for self._ish.attrib."""
-        d = object.__getattribute__(self, '__dict__')
-        if d.__class__ is not ADict:
-            d = ADict(d)  # convert __dict__ to ADict on first access
-            object.__setattr__(self, '__dict__', d)
-        return d
 
-
-def items_are_attrs(cls=None, methods=ItemsAreAttrs, ish=False):
+def items_are_attrs(cls=None, methods=ItemsAreAttrs):
     """Class decorator to convert attribute accesses to item accesses.
 
     If you decorate a class with ``@items_are_attrs``, instance
@@ -133,49 +124,23 @@ def items_are_attrs(cls=None, methods=ItemsAreAttrs, ish=False):
 
     The `MyAttrMethods` class is a container for methods `get`, `set`,
     and `delete`, which `items_as_attrs` will copy into `MyClass` as
-    its `__getattr__`, `__setattr__`, and `__delattr__` methods.  The
-    `MyAttrMethods` class should be a subclass of the default, which
-    is `itemattr.ItemsAreAttrs`.
-
-    Since an `items_are_attrs` class overrides the usual access to its
-    instance attributes, referring to any instance attributes requires
-    going through __dict__ explicitly (which itself works only because
-    x.__dict__ does not go through x.__getattr__).  This ugliness can
-    be an issue, especially in the implementaion of the class you are
-    decorating -- ``self.myattr`` no longer refers to the instance
-    attribute myattr, but to the item 'myattr'.  To work around that
-    readability issue, you can provide the ish keyword to your
-    decorator::
-
-        @items_are_attrs(ish=1)
-        class MyClass(...):
-            def __init__(self, ...):
-                ...
-            ...
-
-    This provides a class property `_ish`, so that for any instance,
-    for example `self`, of `MyClass`, ``self._ish.myattr`` refers to
-    the instance attribute myattr, not the item 'myattr'.  The first
-    reference to ``self._ish`` converts __dict__ from an ordinary dict
-    to an ADict.
+    its `__getattribute__`, `__setattr__`, and `__delattr__` methods.
+    The `MyAttrMethods` class should be a subclass of the default,
+    which is `itemattr.ItemsAreAttrs`.
 
     """
     if hasattr(cls, 'decorator_argument'):
         cls, methods = None, methods
-    if cls is None: 
-        return partial(items_are_attrs, methods=methods, ish=ish)
+    if cls is None:
+        return partial(items_are_attrs, methods=methods)
     # set class attribute names for __getattribute__
     names = [n for n in dir(cls) if not n.startswith('__')]
-    if ish and '_ish' not in names:
-        names.append('_ish')
     cls._IAA_class_attrs_ = set(names) if len(names) > 4 else names
     # methods.name would call methods.name.__get__(...), incorrectly
     # making the name function an unbound method of methods, so:
     cls.__getattribute__ = methods.__dict__['get']
     cls.__setattr__ = methods.__dict__['set']
     cls.__delattr__ = methods.__dict__['delete']
-    if ish:
-        cls._ish = methods.__dict__['_ish']
     return cls
 
 
@@ -262,7 +227,7 @@ def redict(d, cls=None):
     
     """
     if cls is None:
-        cls = dict if isinstance(ADict) else ADict
+        cls = dict if isinstance(d, ADict) else ADict
     dnew = cls(d)
     for key, value in _iteritems(d):
         if isinstance(value, dict):
