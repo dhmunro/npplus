@@ -7,7 +7,9 @@ import npplus.pwpoly as nppw
 
 import __main__
 
-# nosetests --with-coverage --cover-package=npplus
+# python -m nose --with-coverage --cover-package=npplus
+#   --pdb-failures --pdb-errors
+# from nose.tools import set_trace
 
 class TestSolvePeriodic(unittest.TestCase):
     def setUp(self):
@@ -146,9 +148,9 @@ class TestPwPoly(unittest.TestCase):
         self.assertTrue(np.allclose(z, [-2., 0.34910147, 2.4702701]) and
                         np.allclose(zx, [-1., 0., 2., 3.]),
                         "PwPoly roots failed")
-        ipw2 = pw2.integ(lbnd=0, k=[0.,0.])
-        pw2d = ipw2.deriv()
-        self.assertTrue(np.allclose(pw2d.c, pw2.c),
+        pw2d = pw2.deriv()
+        ipw2 = pw2d.integ(lbnd=0., k=pw2(0.))
+        self.assertTrue(np.allclose(ipw2.c, pw2.c),
                         "PwPoly integ or deriv failed")
         x = np.r_[-1.:3.4:0.5]
         pwp = nppw.PerPwPoly(self.xk, self.yk)

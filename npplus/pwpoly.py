@@ -341,8 +341,8 @@ class PwPoly(object):
 
         Parameters
         ----------
-        m : int
-            The number of derivatives to perform.
+        m : int, optional
+            The number of derivatives to perform, default 1.
 
         Returns
         -------
@@ -359,48 +359,51 @@ class PwPoly(object):
             c = c[1:] * arange(1, n).reshape((n-1,) + s)
         return self.new(self.xk0, c)
 
-    def integ(self, m=1, k=None, lbnd=0):
+    def integ(self, m=1, k=(), lbnd=0):
         """Integral as a new piecewise polynomial.
 
         Parameters
         ----------
-        m : int
-            The number of integrations to perform.
-        k : array_like
+        m : int, optional
+            The number of integrations to perform, default 1.
+        k : array_like, optional
             Integration constants. The first constant is applied to the
             first integration, the second to the second, and so on. The
             list of values must less than or equal to `m` in length and any
             missing values are set to zero.
-        lbnd : Scalar
-            The lower bound of the definite integral.
+        lbnd : float, optional
+            The lower bound of the definite integral, default 0.  The
+            integration constant `k` is the value of the integral at
+            ``x = lbnd``, where `x` is the independent variable of the
+            piecewise polynomial.
 
         Returns
         -------
         PwPoly
             The integral of the PwPoly.
         """
-        c = self.c
-        consts = zeros((m,) + c.shape[1:-1])
+        xk0, xk, c = self.xk0, self.xk, self.c
         lbnd = asfarray(lbnd)
         if lbnd.ndim:
             raise TypeError("lower bound must be scalar")
-        dxlb = self.xk0 - lbnd
-        if k is not None:
-            k = asfarray(k)
-            if k.ndim == c.ndim-2:
-                k = k[newaxis]
-            if k.shape[0] < m:
-                k = concatenate((k, zeros((m-k.shape[0],)+k.shape[1:])))
-            consts += k
-        # integration constants same for every interval xk
-        consts = consts[..., newaxis] + zeros(c.shape[-1])
-        for k in consts[:, newaxis]:  # add leading (1,) axis for concatenate
+        ibnd = xk.searchsorted(lbnd)
+        lbnd = lbnd - xk0[ibnd]  # now relative to interval ibnd
+        k = asfarray(k)
+        if k.ndim == c.ndim-2:
+            k = k[newaxis]
+        if k.shape[0] < m:
+            k = concatenate((k, zeros((m-k.shape[0],)+k.shape[1:])))
+        consts = zeros((m,) + c.shape[1:-1]) + k
+        dx = xk[1:] - xk[:-1] if xk.size > 1 else None
+        c0 = zeros((1,) + c.shape[1:])
+        for k in consts:
             n = c.shape[0]
             n = 1. / arange(1, n+1).reshape((n,) + (1,)*(c.ndim-1))
-            c = concatenate((k, c*n))
-            # c[0] each have lower bound at xk, adjust to common lbnd
-            c[0] -= polyfun(c, dxlb)
-        return self.new(self.xk0, c)
+            c = concatenate((c0, c*n))
+            if dx is not None:  # adjust steps to make integral continuous
+                c[0, ..., 2:] += polyfun(c[..., 1:-1], dx).cumsum(axis=-1)
+            c[0] += (k - polyfun(c[..., ibnd], lbnd))[..., newaxis]
+        return self.new(xk0, c)
 
     def roots(self, value=0., tol=1.e-9):
         """Return the values of x for which the piecewise polynomial is zero.
