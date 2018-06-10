@@ -29,12 +29,13 @@
 
 __all__ = ['regress', 'levmar', 'LevmarError']
 
-from numpy import array, asfarray, zeros_like, absolute, maximum, zeros, ones
-from numpy import inner, ones_like, fill_diagonal, minimum, diag, sqrt, asarray
+from inspect import isgeneratorfunction
+
+from numpy import (array, asfarray, zeros_like, ones_like, absolute, maximum,
+                   zeros, ones, inner, fill_diagonal, minimum, diag, sqrt,
+                   asarray)
 from numpy.linalg import solve, inv
 from scipy.linalg import svd
-from scipy.special import gammaincc
-from inspect import isgeneratorfunction
 
 
 def regress(data, *mdl, **kwargs):
@@ -383,6 +384,7 @@ def levmar(data, f, p0, *args, **kwargs):
                lamda=lamda)
     return ModelFit(f, pfull, pcov, chi2, ndof, isgenf, info=cfg)
 
+
 # Default configuration options for levmar.  See levmar docstring.
 # Perhaps should put matrix solver here as well.
 levmar.config = dict(itmax=100, tol=1.e-7, lambda0=0.001, lambdax=1.e12,
@@ -506,6 +508,15 @@ class ModelFit(object):
         prob : ndarray
             Probability that `chi2` of fit will be greater than given `chi2`.
         """
+        # import scipy.special
+        # forces import of pkg_resources (via _ellip_harm_2)
+        # This import catalogues the entire python installation, which may
+        # consist of thousands of packages (e.g.- full Macports or Anaconda
+        # installation), and takes several seconds.  This is an unreasonable
+        # penalty for simply importing lsqfit, since the only place the
+        # special function is required is in this rarely used method.
+        # Therefore, defer importing scipy.special to runtime here.
+        from scipy.special import gammaincc  # noqa
         if chi2 is None:
             chi2 = self.chi2
         chi2 = asfarray(chi2)

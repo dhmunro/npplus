@@ -14,25 +14,25 @@ similar interactive.py modules in other packages.
 
 # sys and os too common to have to import them
 import sys
-import os
+import os  # noqa
 
 # duplicate the pylab numpy imports for interactive use
 import numpy as np
-import numpy.ma as ma
-from numpy import *
-from numpy.fft import *
-from numpy.random import *
-from numpy.linalg import *
+import numpy.ma as ma  # noqa
+from numpy import *  # noqa
+from numpy.fft import *  # noqa
+from numpy.random import *  # noqa
+from numpy.linalg import *  # noqa
 # fix clobbered datetime and bytes (np.random.bytes)
 # note: modern numpy does not clobber datetime, but this is harmless
-import datetime
+import datetime  # noqa
 bytes = __builtins__['bytes']
 
 # force sane SIGFPE error handling
 np.seterr(divide='raise', over='raise', invalid='raise')
 
 # give interpreted access to npplus modules
-from . import *
+from . import *  # noqa
 
 # implement deprecated execfile for python3
 if sys.version_info >= (3,):
@@ -45,7 +45,7 @@ if sys.version_info >= (3,):
         """python2 execfile -- avoid this, write modules and use import."""
         name, args = args[0], args[1:] if len(args) > 1 else (globals(),)
         with open(name) as f:
-            code = compile(f.read(), name, 'exec')
+            code = compile(f.read(), name, 'exec')  # noqa
             eval("exec(code, *args)")  # evade syntax error in python2
 
 

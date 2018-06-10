@@ -203,7 +203,7 @@ def rotation3(size=None):
     and http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.53.1357&rep=rep1&type=pdf
     and https://en.wikipedia.org/wiki/Rotation_matrix#Uniform_random_rotation_matrices
 
-    """
+    """  # noqa
     if size is None:
         size = ()
     else:

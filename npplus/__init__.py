@@ -128,8 +128,8 @@
 
 """
 
-from .basic import *
-from .pwpoly import *
-from .itemattr import *
-from .pcwise import *
-from .lsqfit import *
+from .basic import *  # noqa
+from .pwpoly import *  # noqa
+from .itemattr import *  # noqa
+from .pcwise import *  # noqa
+from .lsqfit import *  # noqa

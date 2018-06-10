@@ -10,7 +10,10 @@ try:
     cyc_name = 'prop_cycle'
 except ImportError:
     # matplotlib 1.4 and below
-    cycler = lambda x, y: y
+
+    def cycler(x, y):
+        return y
+
     cyc_name = 'color_cycle'
 
 

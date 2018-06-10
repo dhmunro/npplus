@@ -34,8 +34,6 @@ https://github.com/mewwts/addict  (focuses on recursive setattr)
 # See the above stackoverflow question for an introduction to this issue.
 # The answers of @Kimvais and @Doug-R provide some background on the
 # pros and cons of conflating dict items and instance attributes.
-#
-# 
 
 from functools import partial
 import sys
@@ -55,7 +53,7 @@ class ItemsAreAttrs(object):
 
     def get(self, name):  # __getattribute__
         if (name.startswith('__') or
-            name in object.__getattribute__(self, '_IAA_class_attrs_')):
+                name in object.__getattribute__(self, '_IAA_class_attrs_')):
             return object.__getattribute__(self, name)
         return self[ItemsAreAttrs.name2key(name)]
 
@@ -224,7 +222,7 @@ def redict(d, cls=None):
         A copy of `d` whose class is `cls`.  Any items which are dict
         instances are similarly copied to be `cls` instances.  Non-dict
         items are not copied unless assignment makes copies.
-    
+
     """
     if cls is None:
         cls = dict if isinstance(d, ADict) else ADict
@@ -233,5 +231,6 @@ def redict(d, cls=None):
         if isinstance(value, dict):
             dnew[key] = redict(value, cls)
     return dnew
+
 
 _iteritems = dict.iteritems if sys.version_info[0] < 3 else dict.items

@@ -19,20 +19,20 @@ You do not need to import ``npplus.interactive`` if you import
 """
 
 # add npplus.interactive
-from ..interactive import *
+from ..interactive import *  # noqa
 
 # recommended scipy main packages
-#import numpy as np
-#import matplotlib as mpl
-#import matplotlib.pyplot as plt
+# import numpy as np
+# import matplotlib as mpl
+# import matplotlib.pyplot as plt
 # pylab = all of above imports, plus most commands into interactive namespace
-from pylab import *
+from pylab import *  # noqa
 
 # wrap plot(), etc. so they return None for use at terminal
-from .pltwraps import *
+from .pltwraps import *  # noqa
 
 # fix matplotlib defaults for better interactive experience, add style_npp
-from .mpldefaults import *
+from .mpldefaults import *  # noqa
 
 # turn on matplotlib.pyplot interactive mode
 try:

@@ -112,9 +112,11 @@ def style_npp(box=None):
 # need to use title(text, y=1.03) with outward ticks
 def title(s, *args, **kwargs):
     y = kwargs.get('y')
-    ret = kwargs.pop('ret', None)
+    kwargs.pop('ret', None)
     if y is None and rcParams['xtick.direction'] == 'out':
         kwargs = dict(y=1.03, **kwargs)
     plt.title(s, *args, **kwargs)
     # use plt.title if you need the return value, like pltwraps
+
+
 title.__doc__ = plt.title.__doc__

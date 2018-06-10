@@ -1,4 +1,4 @@
-########## begin original colormaps.py module
+# --------- begin original colormaps.py module
 # New matplotlib colormaps by Nathaniel J. Smith, Stefan van der Walt,
 # and (in the case of viridis) Eric Firing.
 #
@@ -15,6 +15,13 @@
 """Make matplotlib 2 colormaps available for earlier versions."""
 
 __all__ = ['magma', 'inferno', 'plasma', 'viridis']
+
+from matplotlib.colors import ListedColormap
+# Register the matplotlib 2.0 colormaps.
+from matplotlib.cm import register_cmap
+# Make magma, etc. work like other colormap names.
+from matplotlib import rc
+from matplotlib.pyplot import gci, draw_if_interactive
 
 _magma_data = [[0.001462, 0.000466, 0.013866],
                [0.002258, 0.001295, 0.018331],
@@ -1044,8 +1051,6 @@ _viridis_data = [[0.267004, 0.004874, 0.329415],
                  [0.983868, 0.904867, 0.136897],
                  [0.993248, 0.906157, 0.143936]]
 
-from matplotlib.colors import ListedColormap
-
 cmaps = {}
 for (name, data) in (('magma', _magma_data),
                      ('inferno', _inferno_data),
@@ -1058,17 +1063,10 @@ magma = cmaps['magma']
 inferno = cmaps['inferno']
 plasma = cmaps['plasma']
 viridis = cmaps['viridis']
-########## end original colormaps.py module
+# --------- end original colormaps.py module
 # Append section to present these like other colormaps in pyplot.
-
-# Register the matplotlib 2.0 colormaps.
-from matplotlib.cm import register_cmap
 for cmap in magma, inferno, plasma, viridis:
     register_cmap(cmap=cmap)
-
-# Make magma, etc. work like other colormap names.
-from matplotlib import rc
-from matplotlib.pyplot import gci, draw_if_interactive
 
 
 def cminst(name):
@@ -1085,6 +1083,8 @@ def cminst(name):
     install_cmap.__name__ = name
     install_cmap.__module__ = __name__
     return install_cmap
+
+
 magma, inferno, plasma, viridis = map(cminst, ('magma', 'inferno', 'plasma',
                                                'viridis'))
 del cminst

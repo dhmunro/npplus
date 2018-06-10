@@ -38,14 +38,13 @@ __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
            'cum', 'zcen', 'pcen', 'range']
 
 import sys
-if sys.version_info < (3,):
-    range = xrange
-else:
-    range = sys.modules['builtins'].range
 
 from numpy import array, asanyarray, asfarray, zeros, zeros_like
 from numpy import sign, absolute, log, exp, maximum, minimum, concatenate
 from numpy import arctan, arctan2, pi, sqrt
+
+if sys.version_info < (3,):
+    range = xrange
 
 
 def span(start, stop, num=100, axis=0, dtype=None):
@@ -315,7 +314,7 @@ def atan(a, b=None, out=None, branch=None):
     if branch is None:
         return a
     # return 2pi - (branch-a)%2pi + branch
-    a = (a-branch)%(2.*pi) + branch
+    a = (a-branch) % (2.*pi) + branch
     if out is not None:
         out[...] = a
     return a

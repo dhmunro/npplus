@@ -794,7 +794,7 @@ class PerPwPoly(PwPoly):
     """
     def __call__(self, x, nd=0):
         x0 = self.xk[0]
-        x = x0 + (x - x0)%self.period
+        x = x0 + (x - x0) % self.period
         return super(PerPwPoly, self).__call__(x, nd)
 
     def _rawinit(self, xk, c):
@@ -1405,7 +1405,7 @@ def _splfit_setup(xk, x, y, lo=(), hi=(), per=None, extrap=None):
     xkorig = xk.copy()
     if per:
         x0 = xk[0]
-        x = (x - x0)%(xk[-1] - x0) + x0
+        x = (x - x0) % (xk[-1] - x0) + x0
     else:
         xmin, xmax = x.min(), x.max()
         if xmin < xk[0]:
@@ -1545,5 +1545,5 @@ def _polysetup(c, x):
 ########################################################################
 # useful special cases
 
-#heaviside = PwPoly([0.], [0., 1.])
-#absval = (2.*heaviside - 1.).integ()
+# heaviside = PwPoly([0.], [0., 1.])
+# absval = (2.*heaviside - 1.).integ()

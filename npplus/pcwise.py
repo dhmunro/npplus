@@ -61,7 +61,7 @@ def pcwise(f):
                         "(f0,x1,...xN,fN) sequence with increasing xI.")
     for i, fn in enumerate(funcs):
         try:
-            _ = fn + ''
+            fn + ''
         except TypeError:
             pass
         else:  # replace string by function that raises ValueError(fn)
