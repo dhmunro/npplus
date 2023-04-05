@@ -37,7 +37,7 @@ except ImportError:
     from .mpl2cmaps import magma, inferno, plasma, viridis
 
 
-def style_npp(box=None):
+def style_npp(box=None, cycle='set1ny'):
     """Set rcParams for nicer style than matplotlib defaults.
 
     Parameters
@@ -46,6 +46,9 @@ def style_npp(box=None):
         If set, inward ticks with box drawn around the plot.  By default,
         the style is less traditional with outward ticks that can never
         obscure data and no box around the plot.
+    cycle : str, optional
+        Color cycle to use for plot curves, 'set1ny' by default.  Specify
+        '' to get Matplotlib default.
 
     Notes
     -----
@@ -63,7 +66,8 @@ def style_npp(box=None):
     rc('image', cmap='viridis')
 
     # color cycle for plot() lines
-    CBQ.set_color_cycle('set1ny')  # 'dark2' a good second choice
+    if cycle:
+        CBQ.set_color_cycle(cycle)  # 'dark2' a good second choice
 
     # Without this savefig clips title and label text.
     # The downside is, this may break some animation backends, but we assume

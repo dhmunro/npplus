@@ -35,6 +35,7 @@ np.seterr(divide='raise', over='raise', invalid='raise')
 from . import *  # noqa
 
 # implement deprecated execfile for python3
+from importlib import import_module
 if sys.version_info >= (3,):
     if sys.version_info >= (3, 4):
         from importlib import reload
@@ -52,6 +53,9 @@ if sys.version_info >= (3,):
 # implement extended reload for development reloadx-pdb-edit cycle
 def reloadx(module):
     """Shorthand for ``reload(module); from module import *``.
+
+    The `module` argument may be the module name as a string or the
+    module itself.
 
     Also injects symbol `my` into the module namespace, with value
     equal to the `__main__` module.  This is useful for interactive
@@ -86,7 +90,12 @@ def reloadx(module):
     available in your interactive namespace will be available through the
     `my` variable in your pdb debugging session.
     """
-    reload(module)
+    if isinstance(module, sys.__class__):
+        reload(module)
+    else:
+        if module in sys.modules:
+            del sys.modules[module]
+        module = import_module(module)
     import __main__
     for nm in vars(module):
         if not (nm.startswith('__') and nm.endswith('__')):
