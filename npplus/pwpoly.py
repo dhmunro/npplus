@@ -51,7 +51,7 @@ code is not adaptable.
 
 __all__ = ['PwPoly', 'PerPwPoly', 'spline', 'pline', 'splfit', 'plfit']
 
-from numpy import array, asarray, asfarray, zeros, zeros_like, ones, arange
+from numpy import array, asarray, zeros, zeros_like, ones, arange
 from numpy import eye, concatenate, searchsorted, roll
 from numpy import newaxis, maximum, minimum, absolute, any, isreal, real
 from numpy import prod, transpose, ones_like, bincount, array_equal, sort
@@ -59,6 +59,10 @@ from numpy.linalg import inv, eigvals
 from scipy.linalg import solve_banded, solveh_banded
 
 from .solveper import solve_periodic, solves_periodic, solves_banded
+
+
+def asfarray(a):
+    return asarray(a, float)
 
 
 class PwPoly(object):

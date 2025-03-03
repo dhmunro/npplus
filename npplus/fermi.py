@@ -19,7 +19,11 @@ __all__ = ['fdm12', 'fd12', 'fd32', 'fd52',
            'ifdm12', 'ifd12', 'ifd32', 'ifd52']
 
 from functools import wraps
-from numpy import asfarray, zeros_like, exp, sqrt, log
+from numpy import asarray, zeros_like, exp, sqrt, log
+
+
+def asfarray(a):
+    return asarray(a, float)
 
 
 # The algorithm for the various orders is almost identical,

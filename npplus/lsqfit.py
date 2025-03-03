@@ -31,11 +31,14 @@ __all__ = ['regress', 'levmar', 'LevmarError']
 
 from inspect import isgeneratorfunction
 
-from numpy import (array, asfarray, zeros_like, ones_like, absolute, maximum,
-                   zeros, ones, inner, fill_diagonal, minimum, diag, sqrt,
-                   asarray)
+from numpy import (array, asarray, zeros_like, ones_like, absolute, maximum,
+                   zeros, ones, inner, fill_diagonal, minimum, diag, sqrt)
 from numpy.linalg import solve, inv
 from scipy.linalg import svd
+
+
+def asfarray(a):
+    return asarray(a, float)
 
 
 def regress(data, *mdl, **kwargs):

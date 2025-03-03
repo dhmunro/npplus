@@ -39,13 +39,17 @@ __all__ = ['span', 'spanl', 'cat_', 'a_', 'max_', 'min_', 'abs_', 'atan',
 
 import sys
 
-from numpy import array, asanyarray, asfarray, zeros, zeros_like
+from numpy import array, asarray, asanyarray, zeros, zeros_like
 from numpy import sign, absolute, log, exp, maximum, minimum, concatenate
 from numpy import arctan, arctan2, pi, sqrt
 
 if sys.version_info < (3,):
     range = xrange
     __all__ += ['range']
+
+
+def asfarray(a):
+    return asarray(a, float)
 
 
 def span(start, stop, num=100, axis=0, dtype=None):

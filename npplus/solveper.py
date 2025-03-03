@@ -13,9 +13,12 @@ require a positive definite symmetric matrix.
 --------
 """
 
-from numpy import asfarray, zeros, eye, arange, roll, diag
-from numpy import concatenate
+from numpy import asarray, zeros, eye, arange, roll, diag, concatenate
 from scipy.linalg import solve_banded, solve
+
+
+def asfarray(a):
+    return asarray(a, float)
 
 
 def solve_periodic(l_and_u, ab, b, overwrite_ab=False, overwrite_b=False,
